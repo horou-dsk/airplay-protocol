@@ -15,25 +15,25 @@ use super::{
     Method, Protocol,
 };
 
-type ResultResp = anyhow::Result<Response>;
+pub type ResultResp = anyhow::Result<Response>;
 
 pub trait Handler: Clone + 'static {
     type Output;
     type Future: Future<Output = Self::Output>;
 
-    fn call(&self, req: Request<'_>) -> Self::Future;
+    fn call(&self, req: Request) -> Self::Future;
 }
 
 impl<F, Fut> Handler for F
 where
-    F: Fn(Request<'_>) -> Fut + Clone + 'static,
+    F: Fn(Request) -> Fut + Clone + 'static,
     Fut: Future,
 {
     type Output = Fut::Output;
 
     type Future = Fut;
 
-    fn call(&self, req: Request<'_>) -> Self::Future {
+    fn call(&self, req: Request) -> Self::Future {
         (self)(req)
     }
 }
@@ -42,7 +42,7 @@ where
 
 pub struct Server<F, Fut>
 where
-    F: Fn(Request<'_>) -> Fut,
+    F: Fn(Request) -> Fut,
     Fut: Future<Output = ResultResp> + Send,
 {
     addr: SocketAddr,
@@ -125,14 +125,14 @@ where
 
 impl<F, Fut> Server<F, Fut>
 where
-    F: Fn(Request<'_>) -> Fut + Clone + Send + 'static + std::marker::Sync,
+    F: Fn(Request) -> Fut + Clone + Send + Sync + 'static,
     Fut: Future<Output = ResultResp> + Send,
 {
     pub fn bind(addr: SocketAddr, f: F) -> Self {
         Self { addr, service: f }
     }
 
-    pub async fn run(&self) -> io::Result<()> {
+    pub async fn run(self) -> io::Result<()> {
         let listener = TcpListener::bind(self.addr).await?;
         loop {
             let (stream, _) = listener.accept().await?;

@@ -27,7 +27,7 @@ async fn main() -> tokio::io::Result<()> {
 
     let addr: SocketAddr = ([0, 0, 0, 0], 31927).into();
     let mserver = MServer::bind(addr, control_handle::handle);
-    mserver.run().await?;
+    // mserver.run().await?;
     // And a MakeService to handle each connection...
     // let make_service = make_service_fn(|_conn| async { Ok::<_, Infallible>(service_fn(handle)) });
     // let listener = TcpListener::bind(addr).await?;
