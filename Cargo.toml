@@ -1,0 +1,18 @@
+[package]
+edition = "2021"
+name = "mdns-exp"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# async-zeroconf = "0.2.2"
+anyhow = "1"
+env_logger = "0.10"
+httparse = "1.8"
+hyper = {version = "0.14", features = ["full"]}
+libmdns = {path = "./libmdns"}
+log = "0.4"
+plist = "1.4"
+serde = {version = "1", features = ["derive"]}
+tokio = {version = "1", features = ["full"]}
