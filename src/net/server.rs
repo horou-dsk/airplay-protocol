@@ -22,11 +22,13 @@ pub trait Handler: Clone + 'static {
     type Future: Future<Output = Self::Output>;
 
     fn call(&self, req: Request) -> Self::Future;
+
+    fn fuck(&self);
 }
 
 impl<F, Fut> Handler for F
 where
-    F: Fn(Request) -> Fut + Clone + 'static,
+    F: Fn(Request) -> Fut + Clone + Send + Sync + 'static,
     Fut: Future,
 {
     type Output = Fut::Output;
@@ -36,17 +38,17 @@ where
     fn call(&self, req: Request) -> Self::Future {
         (self)(req)
     }
+
+    fn fuck(&self) {
+        println!("Fuck!!!!!!!!!");
+    }
 }
 
 // type ServiceFn<F, Fut> = Handler<>;
 
-pub struct Server<F, Fut>
-where
-    F: Fn(Request) -> Fut,
-    Fut: Future<Output = ResultResp> + Send,
-{
-    addr: SocketAddr,
-    service: F,
+pub struct Server<F> {
+    pub addr: SocketAddr,
+    pub service: F,
 }
 
 fn parse_header(header_str: &str) -> HeaderMap {
@@ -70,7 +72,7 @@ fn parse_header(header_str: &str) -> HeaderMap {
 
 async fn decoder<F>(mut stream: TcpStream, service: F) -> io::Result<()>
 where
-    F: Handler<Output = ResultResp> + Send,
+    F: Handler,
 {
     loop {
         let mut reader = BufReader::new(&mut stream);
@@ -105,8 +107,9 @@ where
             .map(|v| v.to_str().unwrap().parse().unwrap())
             .unwrap_or(0);
         let body = Body::new(content_length, reader);
-        let request = Request::new(method, protocol, uri, body, headers);
-        let resp = service.call(request).await;
+        let request = Request::new(method, protocol, uri.to_string(), body, headers);
+        let resp = crate::control_handle::handle.call((request,)).await;
+        // let resp = service.call(request).await;
 
         match resp {
             Ok(resp) => {
@@ -123,10 +126,9 @@ where
     Ok(())
 }
 
-impl<F, Fut> Server<F, Fut>
+impl<F> Server<F>
 where
-    F: Fn(Request) -> Fut + Clone + Send + Sync + 'static,
-    Fut: Future<Output = ResultResp> + Send,
+    F: Handler + std::marker::Send,
 {
     pub fn bind(addr: SocketAddr, f: F) -> Self {
         Self { addr, service: f }

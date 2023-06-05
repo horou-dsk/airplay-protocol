@@ -5,7 +5,7 @@ use hyper::{
     service::{make_service_fn, service_fn},
     Body, Request, Response, Server,
 };
-use mdns_exp::net::server::Server as MServer;
+use mdns_exp::net::server::{Handler, Server as MServer};
 use mdns_exp::{airplay_bonjour::AirPlayBonjour, control_handle};
 use tokio::{io::AsyncBufReadExt, net::TcpListener};
 
@@ -26,6 +26,7 @@ async fn main() -> tokio::io::Result<()> {
     let _air = AirPlayBonjour::new("RustMdns", 31927);
 
     let addr: SocketAddr = ([0, 0, 0, 0], 31927).into();
+    // control_handle::handle
     let mserver = MServer::bind(addr, control_handle::handle);
     // mserver.run().await?;
     // And a MakeService to handle each connection...

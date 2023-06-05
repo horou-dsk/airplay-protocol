@@ -47,20 +47,20 @@ impl<'a> Body<'a> {
     }
 }
 
-pub struct Request<'a> {
+pub struct Request {
     method: Method,
     protocol: Protocol,
-    uri: &'a str,
-    body: Body<'a>,
+    uri: String,
+    body: Body<'_>,
     headers: HeaderMap,
 }
 
-impl<'a> Request<'a> {
+impl Request {
     pub fn new(
         method: Method,
         protocol: Protocol,
-        uri: &'a str,
-        body: Body<'a>,
+        uri: String,
+        body: Body,
         headers: HeaderMap,
     ) -> Self {
         Self {
@@ -81,10 +81,10 @@ impl<'a> Request<'a> {
     }
 
     pub fn uri(&self) -> &str {
-        self.uri
+        &self.uri
     }
 
-    pub fn into_body(self) -> Body<'a> {
+    pub fn into_body(self) -> Body<'_> {
         self.body
     }
 
