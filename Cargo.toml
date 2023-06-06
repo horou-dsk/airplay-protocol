@@ -8,7 +8,9 @@ version = "0.1.0"
 [dependencies]
 # async-zeroconf = "0.2.2"
 anyhow = "1"
+bytes = "1"
 env_logger = "0.10"
+futures = "0.3"
 httparse = "1.8"
 hyper = {version = "0.14", features = ["full"]}
 libmdns = {path = "./libmdns"}

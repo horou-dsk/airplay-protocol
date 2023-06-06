@@ -46,9 +46,9 @@ where
 
 // type ServiceFn<F, Fut> = Handler<>;
 
-pub struct Server<F> {
+pub struct Server {
     pub addr: SocketAddr,
-    pub service: F,
+    // pub service: F,
 }
 
 fn parse_header(header_str: &str) -> HeaderMap {
@@ -70,17 +70,20 @@ fn parse_header(header_str: &str) -> HeaderMap {
     map
 }
 
-async fn decoder<F>(mut stream: TcpStream, service: F) -> io::Result<()>
-where
-    F: Handler,
-{
+async fn decoder(mut stream: TcpStream) -> io::Result<()> {
+    // let stream = Mutex::new(stream);
     loop {
+        // let mut head_reader_lock = stream.lock().await;
         let mut reader = BufReader::new(&mut stream);
         let mut initial_line = String::new();
-        reader.read_line(&mut initial_line).await?;
+        let amt = reader.read_line(&mut initial_line).await?;
+        if amt == 0 {
+            break;
+        }
         let methods: Vec<&str> = initial_line.split(' ').collect();
+        println!("{:?}", methods);
         if methods.len() != 3 {
-            // continue;
+            continue;
         }
         let method = match methods[0] {
             "GET" => Method::Get,
@@ -94,8 +97,8 @@ where
             _ => Method::Unknown,
         };
         let protocol = match methods[2] {
-            "RTSP/1.0" => Protocol::Rtsp1_0,
-            "HTTP/1.1" => Protocol::Http1_1,
+            "RTSP/1.0\r\n" => Protocol::Rtsp1_0,
+            "HTTP/1.1\r\n" => Protocol::Http1_1,
             _ => Protocol::Unknown,
         };
         let uri = methods[1];
@@ -106,14 +109,17 @@ where
             .get("content-length")
             .map(|v| v.to_str().unwrap().parse().unwrap())
             .unwrap_or(0);
+        // drop(head_reader_lock);
         let body = Body::new(content_length, reader);
-        let request = Request::new(method, protocol, uri.to_string(), body, headers);
-        let resp = crate::control_handle::handle.call((request,)).await;
+        let request = Request::new(method, protocol, uri, body, headers);
+        let resp = crate::control_handle::handle(request).await;
         // let resp = service.call(request).await;
 
         match resp {
             Ok(resp) => {
                 stream.write_all(&resp.into_bytes()).await?;
+                stream.flush().await?;
+                log::info!("write end....");
             }
             Err(err) => {
                 log::error!("{err:?}");
@@ -126,20 +132,16 @@ where
     Ok(())
 }
 
-impl<F> Server<F>
-where
-    F: Handler + std::marker::Send,
-{
-    pub fn bind(addr: SocketAddr, f: F) -> Self {
-        Self { addr, service: f }
+impl Server {
+    pub fn bind(addr: SocketAddr) -> Self {
+        Self { addr }
     }
 
     pub async fn run(self) -> io::Result<()> {
         let listener = TcpListener::bind(self.addr).await?;
         loop {
             let (stream, _) = listener.accept().await?;
-            let service = self.service.clone();
-            tokio::task::spawn(decoder(stream, service));
+            tokio::task::spawn(decoder(stream));
         }
     }
 }

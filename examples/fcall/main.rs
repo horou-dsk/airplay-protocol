@@ -1,60 +1,57 @@
 use std::future::Future;
 
-pub trait Handler: Clone + 'static {
-    type Output;
-    type Future: Future<Output = Self::Output>;
+// use httparse::Request;
 
-    fn call(&self, req: String) -> Self::Future;
+// type ServiceFn = for<'a> fn(&'a str) -> BoxFuture<'a, u32>;
 
-    fn fuck(&self);
+#[derive(Debug)]
+struct TmpReq<'a> {
+    _uri: &'a str,
 }
 
-impl<F, Fut> Handler for F
+// struct Service {
+//     f: BoxServiceFactory,
+// }
+
+// impl Service {
+//     pub fn new(f: BoxServiceFactory) -> Self {
+//         Self { f }
+//     }
+
+//     pub async fn call(&self) {
+//         let req = TmpReq { uri: "123" };
+//         let result = self.f.call(req).await;
+//         println!("result = {result}");
+//     }
+// }
+
+trait AsyncFn<T>: (Fn(T) -> <Self as AsyncFn<T>>::Fut) {
+    type Fut: Future<Output = <Self as AsyncFn<T>>::Output>;
+    type Output;
+}
+
+impl<T, F, Fut> AsyncFn<T> for F
 where
-    F: Fn(String) -> Fut + Clone + 'static,
+    F: Fn(T) -> Fut,
     Fut: Future,
 {
+    type Fut = Fut;
     type Output = Fut::Output;
-
-    type Future = Fut;
-
-    fn call(&self, req: String) -> Self::Future {
-        (self)(req)
-    }
-
-    fn fuck(&self) {
-        println!("FUCK！！！！");
-    }
 }
 
-struct Service<F>
-where
-    F: Handler,
-{
-    f: F,
-}
-
-impl<F> Service<F>
-where
-    F: Handler,
-{
-    pub fn new(f: F) -> Self {
-        Self { f }
-    }
-
-    pub async fn call(&self) {
-        self.f.fuck();
-        self.f.call("request".to_string()).await;
-    }
-}
-
-async fn handle(req: String) -> u32 {
-    println!("{}", req);
+async fn handle(req: &str) -> u32 {
+    println!("{:?}", req);
     123123
+}
+
+async fn make_service<F>(f: F)
+where
+    F: for<'a> AsyncFn<&'a str, Output = u32>,
+{
+    println!("result = {}", f("req").await);
 }
 
 #[tokio::main]
 async fn main() {
-    handle.fuck();
-    Service::new(handle).call().await;
+    make_service(handle).await;
 }

@@ -1,24 +1,24 @@
-use std::{convert::Infallible, net::SocketAddr};
+use std::net::SocketAddr;
 
 use env_logger::Env;
-use hyper::{
-    service::{make_service_fn, service_fn},
-    Body, Request, Response, Server,
-};
-use mdns_exp::net::server::{Handler, Server as MServer};
-use mdns_exp::{airplay_bonjour::AirPlayBonjour, control_handle};
-use tokio::{io::AsyncBufReadExt, net::TcpListener};
+// use hyper::{
+//     service::{make_service_fn, service_fn},
+//     Body, Request, Response, Server,
+// };
+use mdns_exp::airplay_bonjour::AirPlayBonjour;
+use mdns_exp::net::server::Server as MServer;
+// use tokio::{io::AsyncBufReadExt, net::TcpListener};
 
-async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    // hyper::body::to_bytes(req.into_body())
-    println!("method = {} uri = {}", req.method(), req.uri());
-    Ok(Response::new(Body::from("Hello World")))
-}
+// async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
+//     // hyper::body::to_bytes(req.into_body())
+//     println!("method = {} uri = {}", req.method(), req.uri());
+//     Ok(Response::new(Body::from("Hello World")))
+// }
 
 #[tokio::main]
 async fn main() -> tokio::io::Result<()> {
     let mut builder = env_logger::Builder::new();
-    let env = Env::default().filter_or("MY_LOG_LEVEL", "debug");
+    let env = Env::default().filter_or("MY_LOG_LEVEL", "info");
     // builder.parse_filters("libmdns=debug");
     builder.parse_env(env);
     builder.init();
@@ -27,8 +27,8 @@ async fn main() -> tokio::io::Result<()> {
 
     let addr: SocketAddr = ([0, 0, 0, 0], 31927).into();
     // control_handle::handle
-    let mserver = MServer::bind(addr, control_handle::handle);
-    // mserver.run().await?;
+    let mserver = MServer::bind(addr);
+    mserver.run().await?;
     // And a MakeService to handle each connection...
     // let make_service = make_service_fn(|_conn| async { Ok::<_, Infallible>(service_fn(handle)) });
     // let listener = TcpListener::bind(addr).await?;
