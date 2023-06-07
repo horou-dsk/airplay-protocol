@@ -1,10 +1,11 @@
+use futures::future::BoxFuture;
 use hyper::HeaderMap;
 use tokio::{
     io::{self, AsyncReadExt, BufReader},
     net::TcpStream,
 };
 
-use super::{Method, Protocol};
+use super::{response::Response, Method, Protocol};
 
 pub struct Body<'a> {
     len: usize,
@@ -91,4 +92,8 @@ impl<'a> Request<'a> {
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
+}
+
+pub trait ServiceRequest: Sync + Send {
+    fn call<'a>(&'a self, req: Request<'a>) -> BoxFuture<'a, anyhow::Result<Response>>;
 }

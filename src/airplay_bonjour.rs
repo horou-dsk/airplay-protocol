@@ -4,7 +4,7 @@ const AIRPLAY_SERVICE_TYPE: &str = "_airplay._tcp";
 const AIRTUNES_SERVICE_TYPE: &str = "_raop._tcp";
 
 pub struct AirPlayBonjour {
-    services: Vec<Service>,
+    _services: Vec<Service>,
 }
 
 impl AirPlayBonjour {
@@ -73,6 +73,8 @@ impl AirPlayBonjour {
             &props,
         );
         services.push(svc);
-        Self { services }
+        Self {
+            _services: services,
+        }
     }
 }

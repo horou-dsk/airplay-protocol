@@ -1,11 +1,13 @@
 use std::net::SocketAddr;
 
 use env_logger::Env;
+use mdns_exp::airplay::AirPlayConfig;
 // use hyper::{
 //     service::{make_service_fn, service_fn},
 //     Body, Request, Response, Server,
 // };
 use mdns_exp::airplay_bonjour::AirPlayBonjour;
+use mdns_exp::control_handle::ControlHandle;
 use mdns_exp::net::server::Server as MServer;
 // use tokio::{io::AsyncBufReadExt, net::TcpListener};
 
@@ -26,8 +28,13 @@ async fn main() -> tokio::io::Result<()> {
     let _air = AirPlayBonjour::new("RustMdns", 31927);
 
     let addr: SocketAddr = ([0, 0, 0, 0], 31927).into();
-    // control_handle::handle
-    let mserver = MServer::bind(addr);
+    let airplay_config = AirPlayConfig {
+        server_name: "RustMdns".to_string(),
+        width: 1920,
+        height: 1080,
+        fps: 30,
+    };
+    let mserver = MServer::bind(addr, ControlHandle::new(airplay_config));
     mserver.run().await?;
     // And a MakeService to handle each connection...
     // let make_service = make_service_fn(|_conn| async { Ok::<_, Infallible>(service_fn(handle)) });

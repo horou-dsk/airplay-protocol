@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use hyper::{http::HeaderValue, HeaderMap, StatusCode};
 
 use super::{request::Request, Protocol};
@@ -6,7 +7,7 @@ pub struct Response {
     protocol: Protocol,
     status: StatusCode,
     headers: HeaderMap,
-    body: Option<Vec<u8>>,
+    body: Option<Bytes>,
 }
 
 impl Response {
@@ -41,7 +42,7 @@ impl Response {
         }
     }
 
-    pub fn into_bytes(self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Bytes {
         let mut result = Vec::new();
         let head = format!("{} {}\r\n", self.protocol, self.status);
         result.extend_from_slice(head.as_bytes());
@@ -51,12 +52,11 @@ impl Response {
             result.extend_from_slice(header_value.as_bytes());
             result.extend_from_slice(b"\r\n");
         }
+        result.extend_from_slice(b"\r\n");
         if let Some(body) = self.body {
-            result.extend_from_slice(b"\r\n");
             result.extend_from_slice(&body);
         }
-        result.extend_from_slice(b"\r\n");
-        result
+        result.into()
     }
 
     pub fn text_body(mut self, text: &str) -> Self {
@@ -67,7 +67,18 @@ impl Response {
         let bytes = text.as_bytes();
         self.headers
             .insert("Content-Length", HeaderValue::from(bytes.len()));
-        self.body = Some(bytes.to_vec());
+        self.body = Some(Bytes::copy_from_slice(bytes));
         self
+    }
+
+    pub fn bytes_body(mut self, bytes: Bytes) -> Self {
+        self.headers
+            .insert("Content-Length", HeaderValue::from(bytes.len()));
+        self.body = Some(bytes);
+        self
+    }
+
+    pub fn slice_body(self, data: &[u8]) -> Self {
+        self.bytes_body(Bytes::copy_from_slice(data))
     }
 }

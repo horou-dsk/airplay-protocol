@@ -1,4 +1,4 @@
-use std::{future::Future, net::SocketAddr};
+use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 
 use hyper::{
     http::{HeaderName, HeaderValue},
@@ -10,7 +10,7 @@ use tokio::{
 };
 
 use super::{
-    request::{Body, Request},
+    request::{Body, Request, ServiceRequest},
     response::Response,
     Method, Protocol,
 };
@@ -48,6 +48,7 @@ where
 
 pub struct Server {
     pub addr: SocketAddr,
+    pub handle: Arc<Box<dyn ServiceRequest>>,
     // pub service: F,
 }
 
@@ -70,18 +71,27 @@ fn parse_header(header_str: &str) -> HeaderMap {
     map
 }
 
-async fn decoder(mut stream: TcpStream) -> io::Result<()> {
-    // let stream = Mutex::new(stream);
+async fn decoder(mut stream: TcpStream, handle: Arc<Box<dyn ServiceRequest>>) -> io::Result<()> {
+    log::info!("连接进入....");
+    let mut index = 0;
     loop {
-        // let mut head_reader_lock = stream.lock().await;
+        index += 1;
+        log::info!("index ========== {index}");
+
         let mut reader = BufReader::new(&mut stream);
         let mut initial_line = String::new();
-        let amt = reader.read_line(&mut initial_line).await?;
+        let amt = if let Ok(r) =
+            tokio::time::timeout(Duration::from_secs(60), reader.read_line(&mut initial_line)).await
+        {
+            r?
+        } else {
+            break;
+        };
         if amt == 0 {
             break;
         }
         let methods: Vec<&str> = initial_line.split(' ').collect();
-        println!("{:?}", methods);
+        log::warn!("methods = {:?}", methods);
         if methods.len() != 3 {
             continue;
         }
@@ -107,41 +117,47 @@ async fn decoder(mut stream: TcpStream) -> io::Result<()> {
         let headers = parse_header(&header_line);
         let content_length: usize = headers
             .get("content-length")
-            .map(|v| v.to_str().unwrap().parse().unwrap())
+            .map(|v| v.to_str().unwrap_or("0").parse().unwrap_or(0))
             .unwrap_or(0);
-        // drop(head_reader_lock);
+
         let body = Body::new(content_length, reader);
         let request = Request::new(method, protocol, uri, body, headers);
-        let resp = crate::control_handle::handle(request).await;
-        // let resp = service.call(request).await;
+        let resp = handle.call(request).await;
 
         match resp {
             Ok(resp) => {
-                stream.write_all(&resp.into_bytes()).await?;
+                let resp_bytes = resp.into_bytes();
+                stream.write_all(&resp_bytes).await?;
+                log::info!("resp = \n{}", String::from_utf8_lossy(&resp_bytes));
                 stream.flush().await?;
-                log::info!("write end....");
             }
             Err(err) => {
                 log::error!("{err:?}");
                 break;
             }
         }
-        // let mut header_map = HashMap::new();
-        // header_map.append("key", value)
     }
+    log::info!("连接断开....");
     Ok(())
 }
 
 impl Server {
-    pub fn bind(addr: SocketAddr) -> Self {
-        Self { addr }
+    pub fn bind<T>(addr: SocketAddr, handle: T) -> Self
+    where
+        T: ServiceRequest,
+        T: 'static,
+    {
+        Self {
+            addr,
+            handle: Arc::new(Box::new(handle)),
+        }
     }
 
     pub async fn run(self) -> io::Result<()> {
         let listener = TcpListener::bind(self.addr).await?;
         loop {
             let (stream, _) = listener.accept().await?;
-            tokio::task::spawn(decoder(stream));
+            tokio::task::spawn(decoder(stream, self.handle.clone()));
         }
     }
 }

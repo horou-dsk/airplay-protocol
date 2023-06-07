@@ -4,5 +4,7 @@ pub struct AirPlayConfig {
     pub height: u32,
     pub fps: u16,
 }
-
+pub mod lib;
+pub use lib::AirPlay;
 pub mod property_list;
+pub mod session;
