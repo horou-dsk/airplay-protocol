@@ -18,27 +18,45 @@ fn main() -> std::io::Result<()> {
     }
     thread::sleep(Duration::from_secs(2));
     for ip in ip_list {
-        // Command::new("adb").args(["-s", ip, "root"]).status()?;
-        // Command::new("adb")
-        //     .args([
-        //         "-s",
-        //         ip,
-        //         "shell",
-        //         "nohup starthugep.sh > /data/local/tmp/hugep.log 2>&1 &",
-        //     ])
-        //     .status()?;
-        let out = Command::new("adb")
+        Command::new("adb")
+            .args(["-s", ip, "push", "./tmp/hugep_start.sh", "/data/local/tmp/"])
+            .status()?;
+        Command::new("adb")
             .args([
                 "-s",
                 ip,
                 "shell",
-                "cat",
-                "/data/smallp/dianxinfs_arm32_v0.71-arm32/writable/.deviceID",
+                "chmod",
+                "+x",
+                "/data/local/tmp/hugep_start.sh",
             ])
-            .output()?;
-        println!("ip = {ip} sn = {}", String::from_utf8_lossy(&out.stdout));
-        // Command::new("adb").args(["disconnect", ip]).status()?;
+            .status()?;
+        Command::new("adb")
+            .args(["-s", ip, "shell", "/data/local/tmp/hugep_start.sh"])
+            .status()?;
     }
+    // for ip in ip_list {
+    //     // Command::new("adb").args(["-s", ip, "root"]).status()?;
+    //     // Command::new("adb")
+    //     //     .args([
+    //     //         "-s",
+    //     //         ip,
+    //     //         "shell",
+    //     //         "nohup starthugep.sh > /data/local/tmp/hugep.log 2>&1 &",
+    //     //     ])
+    //     //     .status()?;
+    //     let out = Command::new("adb")
+    //         .args([
+    //             "-s",
+    //             ip,
+    //             "shell",
+    //             "cat",
+    //             "/data/smallp/dianxinfs_arm32_v0.71-arm32/writable/.deviceID",
+    //         ])
+    //         .output()?;
+    //     println!("ip = {ip} sn = {}", String::from_utf8_lossy(&out.stdout));
+    //     // Command::new("adb").args(["disconnect", ip]).status()?;
+    // }
     // for ip in ip_list {
     //     Command::new("adb").args(["connect", ip]).status()?;
     //     thread::sleep(Duration::from_secs(2));

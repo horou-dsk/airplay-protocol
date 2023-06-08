@@ -3,6 +3,8 @@ use ed25519_dalek::PUBLIC_KEY_LENGTH;
 
 use self::pairing::Pairing;
 
+mod fairplay;
+mod hand_garble;
 mod pairing;
 
 #[derive(Default)]

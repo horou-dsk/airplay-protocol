@@ -42,6 +42,10 @@ impl Response {
         }
     }
 
+    pub fn headers_mut(&mut self) -> &mut HeaderMap {
+        &mut self.headers
+    }
+
     pub fn into_bytes(self) -> Bytes {
         let mut result = Vec::new();
         let head = format!("{} {}\r\n", self.protocol, self.status);
@@ -80,5 +84,10 @@ impl Response {
 
     pub fn slice_body(self, data: &[u8]) -> Self {
         self.bytes_body(Bytes::copy_from_slice(data))
+    }
+
+    pub fn status_code(mut self, status_code: StatusCode) -> Self {
+        self.status = status_code;
+        self
     }
 }

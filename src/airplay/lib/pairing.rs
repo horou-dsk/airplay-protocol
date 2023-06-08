@@ -1,12 +1,12 @@
 use aes::cipher::{KeyIvInit, StreamCipher};
 use bytes::Bytes;
-use curve25519_dalek::constants::X25519_BASEPOINT;
 use curve25519_dalek::scalar::Scalar;
+use curve25519_dalek::{constants::X25519_BASEPOINT, MontgomeryPoint};
 use ed25519_dalek::{Signature, Signer, SigningKey, PUBLIC_KEY_LENGTH};
 use rand::rngs::OsRng;
 use sha2::{Digest, Sha512};
 
-type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;
+type Aes128Ctr64BE = ctr::Ctr64BE<aes::Aes128>;
 
 pub(super) struct Pairing {
     keypair: SigningKey,
@@ -56,7 +56,7 @@ impl Pairing {
             //     .unwrap();
             let mut pk = [0; 32];
             pk.copy_from_slice(ecdh_theirs);
-            let ecdh_theirs = Scalar::from_bits(pk);
+            let ecdh_theirs = MontgomeryPoint(pk);
             // let ecdh_theirs = CompressedRistretto::from_slice(ecdh_theirs)
             //     .unwrap()
             //     .decompress()
@@ -70,7 +70,7 @@ impl Pairing {
 
             let mut data_to_sign = [0; 64];
             data_to_sign[..32].copy_from_slice(&self.ecdh_ours);
-            data_to_sign[32..].copy_from_slice(&self.ecdh_secret);
+            data_to_sign[32..].copy_from_slice(ecdh_theirs.as_bytes());
             let signature = self.keypair.sign(&data_to_sign);
 
             let mut encrypted_signature = signature.to_vec();
@@ -96,7 +96,7 @@ impl Pairing {
         }
     }
 
-    fn init_cipher(&self) -> Aes128Ctr64LE {
+    fn init_cipher(&self) -> Aes128Ctr64BE {
         let mut hasher = Sha512::new();
         hasher.update("Pair-Verify-AES-Key".as_bytes());
         log::info!("ecdh_secret = {:?}", self.ecdh_secret);
@@ -112,7 +112,7 @@ impl Pairing {
         let mut shared_secret_sha512_aes_iv = [0u8; 16];
         shared_secret_sha512_aes_iv.copy_from_slice(&hasher.finalize()[..16]);
 
-        Aes128Ctr64LE::new(
+        Aes128Ctr64BE::new(
             &shared_secret_sha512_aes_key.into(),
             &shared_secret_sha512_aes_iv.into(),
         )

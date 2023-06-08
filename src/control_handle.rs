@@ -1,4 +1,5 @@
 use futures::FutureExt;
+use hyper::http::HeaderValue;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -95,6 +96,14 @@ impl ServiceRequest for ControlHandle {
             let res = match req.protocol() {
                 Protocol::Http1_1 => match req.uri() {
                     "/empty" => Ok(Response::http_ok()),
+                    "/info" => {
+                        let mut resp = Response::http_ok().text_body(r#"{"a": 123}"#);
+                        resp.headers_mut().insert(
+                            "Content-Type",
+                            HeaderValue::from_static("application/json;"),
+                        );
+                        Ok(resp)
+                    }
                     _ => Ok(Response::http_ok().text_body("Hello World")),
                 },
                 Protocol::Rtsp1_0 => match req.uri() {
