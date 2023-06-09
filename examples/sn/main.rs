@@ -1,4 +1,9 @@
-use std::{process::Command, thread, time::Duration};
+use std::{
+    io::Write,
+    process::{Command, Stdio},
+    thread,
+    time::Duration,
+};
 
 fn main() -> std::io::Result<()> {
     let ip_list = [
@@ -18,22 +23,37 @@ fn main() -> std::io::Result<()> {
     }
     thread::sleep(Duration::from_secs(2));
     for ip in ip_list {
-        Command::new("adb")
-            .args(["-s", ip, "push", "./tmp/hugep_start.sh", "/data/local/tmp/"])
-            .status()?;
-        Command::new("adb")
-            .args([
-                "-s",
-                ip,
-                "shell",
-                "chmod",
-                "+x",
-                "/data/local/tmp/hugep_start.sh",
-            ])
-            .status()?;
-        Command::new("adb")
-            .args(["-s", ip, "shell", "/data/local/tmp/hugep_start.sh"])
-            .status()?;
+        let mut child = Command::new("adb")
+            .args(["-s", ip, "shell"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()?;
+        let child_stdin = child.stdin.as_mut().unwrap();
+        child_stdin.write_all(b"pidof hugep\n")?;
+        // Close stdin to finish and avoid indefinite blocking
+
+        let output = child.wait_with_output()?;
+
+        println!(
+            "ip = {ip} output = {:?}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        // Command::new("adb")
+        //     .args(["-s", ip, "push", "./tmp/hugep_start.sh", "/data/local/tmp/"])
+        //     .status()?;
+        // Command::new("adb")
+        //     .args([
+        //         "-s",
+        //         ip,
+        //         "shell",
+        //         "chmod",
+        //         "+x",
+        //         "/data/local/tmp/hugep_start.sh",
+        //     ])
+        //     .status()?;
+        // Command::new("adb")
+        //     .args(["-s", ip, "shell", "/data/local/tmp/hugep_start.sh"])
+        //     .status()?;
     }
     // for ip in ip_list {
     //     // Command::new("adb").args(["-s", ip, "root"]).status()?;

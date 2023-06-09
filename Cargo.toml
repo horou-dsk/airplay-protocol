@@ -25,3 +25,13 @@ rand = "0.8"
 serde = {version = "1", features = ["derive"]}
 sha2 = "0.10"
 tokio = {version = "1", features = ["full"]}
+
+[dev-dependencies]
+criterion = {version = "0.4", features = ["html_reports"]}
+
+[[bench]]
+harness = false
+name = "my_benchmark"
+
+[profile.dev]
+overflow-checks = false

@@ -1,3 +1,4 @@
+#![feature(test)]
 #![feature(fn_traits)]
 #![feature(async_fn_in_trait)]
 
