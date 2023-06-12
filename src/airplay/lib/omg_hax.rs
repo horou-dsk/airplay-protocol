@@ -1,1 +1,1 @@
-struct OmgHax {}
+// fn permute_table_2()

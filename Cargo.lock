@@ -353,6 +353,18 @@ checksum = "7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91"
 
 [[package]]
 name = "env_logger"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a19187fea3ac7e84da7dacf48de0c45d63c6a76f9490dae389aead16c243fce3"
+dependencies = [
+ "atty",
+ "humantime",
+ "log",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85cdab6a89accf66733ad5a1693a4dcced6aeff64602b634530dd73c1f3ee9f0"
@@ -736,6 +748,7 @@ name = "libmdns"
 version = "0.7.5"
 dependencies = [
  "byteorder",
+ "env_logger 0.8.4",
  "futures-util",
  "hostname",
  "if-addrs",
@@ -792,23 +805,28 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "anyhow",
+ "byteorder",
  "bytes",
+ "cc",
  "criterion",
  "ctr",
  "curve25519-dalek",
  "ed25519",
  "ed25519-dalek",
- "env_logger",
+ "env_logger 0.10.0",
  "futures",
  "httparse",
  "hyper",
+ "libc",
  "libmdns",
  "log",
+ "obfstr",
  "plist",
  "rand",
  "serde",
  "sha2",
  "tokio",
+ "tp_macro",
 ]
 
 [[package]]
@@ -886,6 +904,12 @@ dependencies = [
  "hermit-abi 0.2.6",
  "libc",
 ]
+
+[[package]]
+name = "obfstr"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3ba2979b86cc910a6d13837ef97fef0c6b68fa807c5e014d622449db18351dc"
 
 [[package]]
 name = "once_cell"
@@ -1390,6 +1414,15 @@ name = "tower-service"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6bc1c9ce2b5135ac7f93c72918fc37feb872bdc6a5533a8b85eb4b86bfdae52"
+
+[[package]]
+name = "tp_macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "tracing"
