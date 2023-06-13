@@ -1,17 +1,17 @@
 use tp_macro::{include_i32_buf, jb_to_rb};
 
-const Z_KEY: [u8; 16] =
+pub const Z_KEY: [u8; 16] =
     jb_to_rb!([26, 100, -7, 96, 108, -29, 1, -87, 84, 72, 27, -44, -85, -127, -4, -58]);
 
-const X_KEY: [u8; 16] =
+pub const X_KEY: [u8; 16] =
     jb_to_rb!([-114, -70, 7, -52, -74, 90, -10, 32, 51, -49, -8, 66, -27, -43, 90, 125]);
 
-const T_KEY: [u8; 16] =
+pub const T_KEY: [u8; 16] =
     jb_to_rb!([-48, 4, -87, 97, 107, -92, 0, -121, 104, -117, 95, 21, 21, 53, -39, -87]);
 
-const INDEX_MANGLE: [u8; 11] = jb_to_rb!([1, 2, 4, 8, 16, 32, 64, -128, 27, 54, 108]);
+pub const INDEX_MANGLE: [u8; 11] = jb_to_rb!([1, 2, 4, 8, 16, 32, 64, -128, 27, 54, 108]);
 
-const DEFAULT_SAP: [u8; 276] = jb_to_rb!([
+pub const DEFAULT_SAP: [u8; 276] = jb_to_rb!([
     0, 3, 0, 0, 0, 0, 0, 0, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121,
     121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121, 121,
     121, 121, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 121, 121, 121, 121,
@@ -27,19 +27,19 @@ const DEFAULT_SAP: [u8; 276] = jb_to_rb!([
     -8, -48, -6, 119, -115, -5, -126, -115, 64, -57, -114, -108, 30, 30, 30
 ]);
 
-const INITIAL_SESSION_KEY: [u8; 16] =
+pub const INITIAL_SESSION_KEY: [u8; 16] =
     jb_to_rb!([-36, -36, -13, -71, 11, 116, -36, -5, -122, 127, -9, 96, 22, 114, -112, 81]);
 
-const STATIC_SOURCE_1: [u8; 17] = jb_to_rb!([
+pub const STATIC_SOURCE_1: [u8; 17] = jb_to_rb!([
     -6, -100, -83, 77, 75, 104, 38, -116, 127, -13, -120, -103, -34, -110, 46, -107, 30
 ]);
 
-const STATIC_SOURCE_2: [u8; 47] = jb_to_rb!([
+pub const STATIC_SOURCE_2: [u8; 47] = jb_to_rb!([
     -20, 78, 39, 94, -3, -14, -24, 48, -105, -82, 112, -5, -32, 0, 63, 28, 57, -128, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 9, 0, 0, 0, 0, 0, 0
 ]);
 
-const MESSAGE_KEY: [[u8; 144]; 4] = [
+pub const MESSAGE_KEY: [[u8; 144]; 4] = [
     jb_to_rb!([
         29, 36, 3, 64, -36, -82, -57, -88, 38, 124, 32, -103, 93, 126, -119, 46, -94, 88, -81, -66,
         -72, 7, -102, 47, -121, 119, -45, -50, 55, 62, 27, 22, 65, 79, 78, -66, 98, 90, 0, 119,
@@ -82,20 +82,20 @@ const MESSAGE_KEY: [[u8; 144]; 4] = [
     ]),
 ];
 
-const MESSAGE_IV: [[u8; 16]; 4] = [
+pub const MESSAGE_IV: [[u8; 16]; 4] = [
     jb_to_rb!([87, 82, -15, -73, 84, -99, -113, -121, 12, 16, 72, 90, 96, -120, -54, -37]),
     jb_to_rb!([-33, 123, 21, 99, -16, 5, 88, 119, 82, -87, 4, 2, -71, -93, -110, -107]),
     jb_to_rb!([104, -75, 70, 17, -5, 4, -34, 103, 108, -106, -114, -5, -116, -99, -80, -55]),
     jb_to_rb!([39, 7, -117, 33, 35, 54, 30, 122, -36, -99, 11, 17, 83, 84, 105, 13]),
 ];
 
-static TABLE_S1: &[u8] = include_bytes!("resources/table_s1");
-static TABLE_S2: &[u8] = include_bytes!("resources/table_s2");
-static TABLE_S3: &[u8] = include_bytes!("resources/table_s3");
-static TABLE_S4: &[u8] = include_bytes!("resources/table_s4");
-static TABLE_S5: &[i32] = include_i32_buf!("resources/table_s5");
-static TABLE_S6: &[i32] = include_i32_buf!("resources/table_s6");
-static TABLE_S7: &[i32] = include_i32_buf!("resources/table_s7");
-static TABLE_S8: &[i32] = include_i32_buf!("resources/table_s8");
-static TABLE_S9: &[i32] = include_i32_buf!("resources/table_s9");
-static TABLE_S10: &[u8] = include_bytes!("resources/table_s10");
+pub static TABLE_S1: &[u8] = include_bytes!("resources/table_s1");
+pub static TABLE_S2: &[u8] = include_bytes!("resources/table_s2");
+pub static TABLE_S3: &[u8] = include_bytes!("resources/table_s3");
+pub static TABLE_S4: &[u8] = include_bytes!("resources/table_s4");
+pub static TABLE_S5: &[i32] = include_i32_buf!("resources/table_s5");
+pub static TABLE_S6: &[i32] = include_i32_buf!("resources/table_s6");
+pub static TABLE_S7: &[i32] = include_i32_buf!("resources/table_s7");
+pub static TABLE_S8: &[i32] = include_i32_buf!("resources/table_s8");
+pub static TABLE_S9: &[i32] = include_i32_buf!("resources/table_s9");
+pub static TABLE_S10: &[u8] = include_bytes!("resources/table_s10");

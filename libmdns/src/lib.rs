@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 use futures_util::{future, future::FutureExt};
 use log::warn;
 use std::cell::RefCell;

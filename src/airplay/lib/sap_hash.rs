@@ -4,7 +4,7 @@ fn rol8(input: u8, count: u8) -> u8 {
     (input << count) | input >> (8 - count)
 }
 
-fn sap_hash(block_in: &[u8], key_out: &mut [u8]) {
+pub(super) fn sap_hash(block_in: &[u8], key_out: &mut [u8]) {
     let mut buffer0 = [
         150, 95, 198, 83, 248, 70, 204, 24, 223, 190, 178, 248, 56, 215, 236, 34, 3, 209, 32, 143,
     ];

@@ -12,7 +12,7 @@ use crate::{
         request::{Request, ServiceRequest},
         response::Response,
         server::ResultResp,
-        Protocol,
+        Method, Protocol,
     },
 };
 
@@ -80,6 +80,18 @@ impl ControlHandle {
             Ok(resp)
         }
     }
+
+    async fn handle_fairplay_setup(&self, req: Request<'_>) -> ResultResp {
+        let session = self.resolve_session(&req).await;
+        let resp = Response::rtsp_ok(&req);
+        let data = req.into_body().array().await.expect("body read error");
+        let data = session.write().await.airplay.fairplay_setup(&data);
+        if let Some(data) = data {
+            Ok(resp.bytes_body(data))
+        } else {
+            Ok(resp)
+        }
+    }
 }
 
 impl ServiceRequest for ControlHandle {
@@ -106,10 +118,11 @@ impl ServiceRequest for ControlHandle {
                     }
                     _ => Ok(Response::http_ok().text_body("Hello World")),
                 },
-                Protocol::Rtsp1_0 => match req.uri() {
-                    "/info" => self.handle_get_info(req).await,
-                    "/pair-setup" => self.handle_pair_setup(req).await,
-                    "/pair-verify" => self.handle_pair_verify(req).await,
+                Protocol::Rtsp1_0 => match (req.method(), req.uri()) {
+                    (Method::Get, "/info") => self.handle_get_info(req).await,
+                    (Method::Post, "/pair-setup") => self.handle_pair_setup(req).await,
+                    (Method::Post, "/pair-verify") => self.handle_pair_verify(req).await,
+                    (Method::Post, "/fp-setup") => self.handle_fairplay_setup(req).await,
                     _ => Ok(Response::rtsp_ok(&req)),
                 },
                 Protocol::Unknown => Ok(Response::http_ok()),
