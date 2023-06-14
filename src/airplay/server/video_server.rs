@@ -29,7 +29,7 @@ struct VideoServer1 {
 
 impl VideoServer1 {
     pub async fn start() -> io::Result<Self> {
-        let listener = TcpListener::bind("192.169.1.19:0").await?;
+        let listener = TcpListener::bind("0.0.0.0:0").await?;
         let port = listener.local_addr()?.port();
         let task = tokio::task::spawn(async move {
             log::info!("VideoServer Starting...");

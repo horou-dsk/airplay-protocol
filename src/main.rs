@@ -25,14 +25,17 @@ async fn main() -> tokio::io::Result<()> {
     builder.parse_env(env);
     builder.init();
 
-    let _air = AirPlayBonjour::new("RustMdns", 31927);
+    let port = 31927;
 
-    let addr: SocketAddr = ([0, 0, 0, 0], 31927).into();
+    let _air = AirPlayBonjour::new("RustMdns", port);
+
+    let addr: SocketAddr = ([0, 0, 0, 0], port).into();
     let airplay_config = AirPlayConfig {
-        server_name: "RustMdns".to_string(),
+        server_name: "RustAirplay".to_string(),
         width: 1920,
         height: 1080,
         fps: 30,
+        port,
     };
     let mserver = MServer::bind(addr, ControlHandle::new(airplay_config));
     mserver.run().await?;

@@ -118,14 +118,12 @@ pub fn compute_m2(salt: &[u8], client_pk: &[u8], client_proof: &[u8]) -> Vec<u8>
     let mut hasher = Sha1::new();
     hasher.update(salt);
     hasher.update([0, 0, 0, 0]);
-    let k1 = hasher.finalize();
+    let k1 = hasher.finalize_reset();
 
-    let mut hasher = Sha1::new();
     hasher.update(salt);
     hasher.update([0, 0, 0, 1]);
-    let k2 = hasher.finalize();
+    let k2 = hasher.finalize_reset();
 
-    let mut hasher = Sha1::new();
     hasher.update(client_pk);
     hasher.update(client_proof);
     hasher.update(k1);

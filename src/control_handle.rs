@@ -61,7 +61,7 @@ impl ControlHandle {
     }
 
     async fn handle_pair_pin_start(&self, req: Request<'_>) -> ResultResp {
-        println!("{:#?}", req.headers());
+        log::info!("{:#?}", req.headers());
         let resp = Response::rtsp_ok(&req);
         Ok(resp)
     }
@@ -123,7 +123,7 @@ impl ControlHandle {
                         .expect("start video server error!");
                     let setup = property_list::prepare_setup_video_response(
                         video_server.get_port(),
-                        31927,
+                        self.airplay_config.port,
                         0,
                     );
                     Ok(resp.bytes_body(setup))

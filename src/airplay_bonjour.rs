@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use libmdns::Service;
 
 const AIRPLAY_SERVICE_TYPE: &str = "_airplay._tcp";
@@ -10,9 +12,10 @@ pub struct AirPlayBonjour {
 impl AirPlayBonjour {
     pub fn new(service_name: &str, port: u16) -> Self {
         let mut services = Vec::new();
-        let ip = "192.169.1.19".parse().unwrap();
+        let interface = default_net::get_default_interface().unwrap();
+        let ip = IpAddr::V4(interface.ipv4[0].addr);
         let responder = libmdns::Responder::new_with_ip_list(vec![ip]).unwrap();
-        let mac = "DC:21:48:FE:13:2A";
+        let mac = interface.mac_addr.unwrap().to_string(); //"DC:21:48:FE:13:2A";
         let props = vec![
             ("deviceid", mac.to_string()),
             ("features", "0x5A7FFFF7,0x1E".to_string()),
