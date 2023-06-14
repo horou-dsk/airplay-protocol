@@ -128,7 +128,7 @@ async fn decoder(mut stream: TcpStream, handle: Arc<Box<dyn ServiceRequest>>) ->
             Ok(resp) => {
                 let resp_bytes = resp.into_bytes();
                 stream.write_all(&resp_bytes).await?;
-                log::info!("resp = \n{}", String::from_utf8_lossy(&resp_bytes));
+                // log::info!("resp = \n{}", String::from_utf8_lossy(&resp_bytes));
                 stream.flush().await?;
             }
             Err(err) => {

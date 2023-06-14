@@ -1,23 +1,25 @@
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
-use super::AirPlay;
+use super::{server::video_server::VideoServer, AirPlay};
 
 pub struct Session {
     pub id: String,
-    pub airplay: AirPlay,
+    pub airplay: Arc<RwLock<AirPlay>>,
+    pub video_server: Arc<RwLock<VideoServer>>,
 }
 
 impl Session {
     pub fn new(id: String) -> Self {
         Self {
             id,
-            airplay: AirPlay::default(),
+            airplay: Arc::new(RwLock::new(AirPlay::default())),
+            video_server: Arc::new(RwLock::new(VideoServer::default())),
         }
     }
 }
 
-pub type ARSession = Arc<RwLock<Session>>;
+pub type ARSession = Arc<Session>;
 
 #[derive(Default)]
 pub struct SessionManager {
@@ -29,10 +31,14 @@ impl SessionManager {
         if let Some(session) = self.sessions.get_mut(id) {
             session.clone()
         } else {
-            let session = Arc::new(RwLock::new(Session::new(id.to_string())));
+            let session = Arc::new(Session::new(id.to_string()));
             self.sessions.insert(id.to_string(), session.clone());
             session
             // self.sessions.get_mut(id).unwrap()
         }
+    }
+
+    pub fn remove_session(&mut self, id: &str) -> Option<ARSession> {
+        self.sessions.remove(id)
     }
 }

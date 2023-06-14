@@ -1,4 +1,4 @@
-use mdns_exp::{foo, print_buf};
+use airplay2_protocol::{foo, print_buf};
 
 fn main() {
     let result = unsafe { foo(1, 6) };

@@ -1,4 +1,5 @@
-pub(super) enum CompressionType {
+#[derive(Debug)]
+pub enum CompressionType {
     Lpcm,
     Alac,
     Aac,
@@ -6,7 +7,21 @@ pub(super) enum CompressionType {
     Opus,
 }
 
-pub(super) enum AudioFormat {
+impl CompressionType {
+    pub fn from_code(code: i64) -> Self {
+        match code {
+            1 => Self::Lpcm,
+            2 => Self::Alac,
+            4 => Self::Aac,
+            8 => Self::AacEld,
+            32 => Self::Opus,
+            _ => panic!("error code {}", code),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum AudioFormat {
     Pcm8000_16_1,
     Pcm8000_16_2,
     Pcm16000_16_1,
@@ -84,7 +99,46 @@ impl AudioFormat {
     }
 }
 
-pub(super) struct AudioStreamInfo {
-    compression_type: CompressionType,
-    audio_format: AudioFormat,
+#[derive(Debug)]
+pub struct AudioStreamInfo {
+    pub compression_type: CompressionType,
+    pub audio_format: AudioFormat,
+    pub samples_per_frame: u64,
+}
+
+impl AudioStreamInfo {
+    pub(super) fn builder() -> AudioStreamInfoBuilder {
+        AudioStreamInfoBuilder {
+            audio_stream_info: Self {
+                compression_type: CompressionType::Lpcm,
+                audio_format: AudioFormat::Pcm44100_24_1,
+                samples_per_frame: 0,
+            },
+        }
+    }
+}
+
+pub(super) struct AudioStreamInfoBuilder {
+    audio_stream_info: AudioStreamInfo,
+}
+
+impl AudioStreamInfoBuilder {
+    pub fn audio_format(&mut self, audio_format: AudioFormat) -> &mut Self {
+        self.audio_stream_info.audio_format = audio_format;
+        self
+    }
+
+    pub fn compression_type(&mut self, ty: CompressionType) -> &mut Self {
+        self.audio_stream_info.compression_type = ty;
+        self
+    }
+
+    pub fn samples_per_frame(&mut self, samples_per_frame: u64) -> &mut Self {
+        self.audio_stream_info.samples_per_frame = samples_per_frame;
+        self
+    }
+
+    pub fn build(self) -> AudioStreamInfo {
+        self.audio_stream_info
+    }
 }

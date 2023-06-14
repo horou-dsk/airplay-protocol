@@ -1,10 +1,13 @@
 use aes::cipher::{KeyIvInit, StreamCipher};
-use bytes::Bytes;
+use bytes::{BufMut, Bytes};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::{constants::X25519_BASEPOINT, MontgomeryPoint};
 use ed25519_dalek::{Signature, Signer, SigningKey, PUBLIC_KEY_LENGTH};
 use rand::rngs::OsRng;
+use rand::Rng;
 use sha2::{Digest, Sha512};
+
+use crate::airplay::property_list;
 
 type Aes128Ctr64BE = ctr::Ctr64BE<aes::Aes128>;
 
@@ -15,12 +18,14 @@ pub(super) struct Pairing {
     ecdh_theirs: Bytes,
     ecdh_secret: Bytes,
     pair_verified: bool,
+    salt: [u8; 16],
 }
 
 impl Default for Pairing {
     fn default() -> Self {
         let mut csprng = rand::rngs::OsRng {};
         let keypair = SigningKey::generate(&mut csprng);
+        let salt = rand::thread_rng().gen::<[u8; 16]>();
         Self {
             keypair,
             ed_theirs: Default::default(),
@@ -28,11 +33,44 @@ impl Default for Pairing {
             ecdh_theirs: Default::default(),
             ecdh_secret: Default::default(),
             pair_verified: Default::default(),
+            salt,
         }
     }
 }
 
 impl Pairing {
+    pub fn pair_setup_pin(&self, data: &[u8]) -> Option<Bytes> {
+        let plist_data: plist::Dictionary = plist::from_bytes(data).unwrap();
+        log::info!("{:#?}", plist_data);
+        let mut result = plist::Dictionary::default();
+        if plist_data.contains_key("method") && plist_data.contains_key("user") {
+            result.insert(
+                "pk".to_string(),
+                plist::Value::Data(self.keypair.verifying_key().to_bytes().to_vec()),
+            );
+            result.insert("salt".to_string(), plist::Value::Data(self.salt.to_vec()));
+        } else if plist_data.contains_key("pk") && plist_data.contains_key("proof") {
+            result.insert(
+                "proof".to_string(),
+                plist::Value::Data(property_list::compute_m2(
+                    &self.salt,
+                    plist_data["pk"].as_data().unwrap(),
+                    plist_data["proof"].as_data().unwrap(),
+                )),
+            );
+        } else if plist_data.contains_key("epk") && plist_data.contains_key("authTag") {
+            result.insert("epk".to_string(), plist_data["epk"].clone());
+            result.insert("authTag".to_string(), plist_data["authTag"].clone());
+        }
+        if !result.is_empty() {
+            let mut writer = bytes::BytesMut::default().writer();
+            plist::to_writer_binary(&mut writer, &result).unwrap();
+            Some(writer.into_inner().freeze())
+        } else {
+            None
+        }
+    }
+
     pub fn pair_setup(&self) -> [u8; PUBLIC_KEY_LENGTH] {
         self.keypair.verifying_key().to_bytes()
     }
@@ -116,5 +154,9 @@ impl Pairing {
             &shared_secret_sha512_aes_key.into(),
             &shared_secret_sha512_aes_iv.into(),
         )
+    }
+
+    pub fn get_shared_secret(&self) -> &Bytes {
+        &self.ecdh_secret
     }
 }

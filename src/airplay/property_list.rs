@@ -1,6 +1,7 @@
 use super::AirPlayConfig;
 use bytes::{BufMut, Bytes};
 use plist::Value::{self, Dictionary};
+use sha1::{Digest, Sha1};
 
 pub fn prepare_info_response(airplay_config: &AirPlayConfig) -> Bytes {
     let mut audio_format_100 = plist::Dictionary::default();
@@ -83,4 +84,52 @@ pub fn prepare_info_response(airplay_config: &AirPlayConfig) -> Bytes {
 
     plist::to_writer_binary(&mut write, &response).unwrap();
     write.into_inner().freeze()
+}
+
+pub fn prepare_setup_audio_response(data_port: u16, control_port: u16) -> Bytes {
+    let mut data_stream = plist::Dictionary::default();
+    data_stream.insert("dataPort".to_string(), data_port.into());
+    data_stream.insert("type".to_string(), 90.into());
+    data_stream.insert("controlPort".to_string(), control_port.into());
+    let streams = Value::Array(vec![Value::Dictionary(data_stream)]);
+    let mut response = plist::Dictionary::default();
+    response.insert("streams".to_string(), streams);
+    let mut writer = bytes::BytesMut::default().writer();
+    plist::to_writer_binary(&mut writer, &response).unwrap();
+    writer.into_inner().freeze()
+}
+
+pub fn prepare_setup_video_response(data_port: u16, event_port: u16, timing_port: u16) -> Bytes {
+    let mut data_stream = plist::Dictionary::default();
+    data_stream.insert("dataPort".to_string(), data_port.into());
+    data_stream.insert("type".to_string(), 110.into());
+    // data_stream.insert("controlPort".to_string(), control_port.into());
+    let streams = Value::Array(vec![Value::Dictionary(data_stream)]);
+    let mut response = plist::Dictionary::default();
+    response.insert("streams".to_string(), streams);
+    response.insert("eventPort".to_string(), event_port.into());
+    response.insert("timingPort".to_string(), timing_port.into());
+    let mut writer = bytes::BytesMut::default().writer();
+    plist::to_writer_binary(&mut writer, &response).unwrap();
+    writer.into_inner().freeze()
+}
+
+pub fn compute_m2(salt: &[u8], client_pk: &[u8], client_proof: &[u8]) -> Vec<u8> {
+    let mut hasher = Sha1::new();
+    hasher.update(salt);
+    hasher.update([0, 0, 0, 0]);
+    let k1 = hasher.finalize();
+
+    let mut hasher = Sha1::new();
+    hasher.update(salt);
+    hasher.update([0, 0, 0, 1]);
+    let k2 = hasher.finalize();
+
+    let mut hasher = Sha1::new();
+    hasher.update(client_pk);
+    hasher.update(client_proof);
+    hasher.update(k1);
+    hasher.update(k2);
+
+    hasher.finalize().to_vec()
 }

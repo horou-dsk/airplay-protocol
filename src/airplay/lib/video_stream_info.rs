@@ -1,13 +1,6 @@
-use super::media_stream_info::{MediaStreamInfo, StreamType};
-
-pub(super) struct VideoStreamInfo {
+#[derive(Debug)]
+pub struct VideoStreamInfo {
     stream_connection_id: String,
-}
-
-impl MediaStreamInfo for VideoStreamInfo {
-    fn stream_type(&self) -> StreamType {
-        StreamType::Video
-    }
 }
 
 impl VideoStreamInfo {

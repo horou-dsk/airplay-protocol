@@ -23,6 +23,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "airplay2-protocol"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "byteorder",
+ "bytes",
+ "cc",
+ "criterion",
+ "ctr",
+ "curve25519-dalek",
+ "ed25519",
+ "ed25519-dalek",
+ "env_logger 0.10.0",
+ "futures",
+ "httparse",
+ "hyper",
+ "libc",
+ "libmdns",
+ "log",
+ "obfstr",
+ "plist",
+ "rand",
+ "serde",
+ "sha-1",
+ "sha2",
+ "tokio",
+ "tp_macro",
+]
+
+[[package]]
 name = "anes"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -800,36 +831,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffbee8634e0d45d258acb448e7eaab3fce7a0a467395d4d9f228e3c1f01fb2e4"
 
 [[package]]
-name = "mdns-exp"
-version = "0.1.0"
-dependencies = [
- "aes",
- "anyhow",
- "byteorder",
- "bytes",
- "cc",
- "criterion",
- "ctr",
- "curve25519-dalek",
- "ed25519",
- "ed25519-dalek",
- "env_logger 0.10.0",
- "futures",
- "httparse",
- "hyper",
- "libc",
- "libmdns",
- "log",
- "obfstr",
- "plist",
- "rand",
- "serde",
- "sha2",
- "tokio",
- "tp_macro",
-]
-
-[[package]]
 name = "memchr"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1213,6 +1214,17 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "sha-1"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5058ada175748e33390e40e872bd0fe59a19f265d0158daa551c5a88a76009c"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
 ]
 
 [[package]]

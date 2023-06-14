@@ -1,5 +1,5 @@
+use airplay2_protocol::airplay::lib::hand_garble::garble;
 use criterion::{criterion_group, criterion_main, Criterion};
-use mdns_exp::airplay::lib::hand_garble::garble;
 
 fn garble1_test() {
     let mut buf0 = [

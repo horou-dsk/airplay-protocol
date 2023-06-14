@@ -1,14 +1,14 @@
 use std::net::SocketAddr;
 
+use airplay2_protocol::airplay::AirPlayConfig;
 use env_logger::Env;
-use mdns_exp::airplay::AirPlayConfig;
 // use hyper::{
 //     service::{make_service_fn, service_fn},
 //     Body, Request, Response, Server,
 // };
-use mdns_exp::airplay_bonjour::AirPlayBonjour;
-use mdns_exp::control_handle::ControlHandle;
-use mdns_exp::net::server::Server as MServer;
+use airplay2_protocol::airplay_bonjour::AirPlayBonjour;
+use airplay2_protocol::control_handle::ControlHandle;
+use airplay2_protocol::net::server::Server as MServer;
 // use tokio::{io::AsyncBufReadExt, net::TcpListener};
 
 // async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {

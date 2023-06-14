@@ -1,6 +1,6 @@
 [package]
 edition = "2021"
-name = "mdns-exp"
+name = "airplay2-protocol"
 version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -26,6 +26,7 @@ obfstr = "0.4"
 plist = "1.4"
 rand = "0.8"
 serde = {version = "1", features = ["derive"]}
+sha-1 = "0.10"
 sha2 = "0.10"
 tokio = {version = "1", features = ["full"]}
 tp_macro = {path = "tp_macro"}

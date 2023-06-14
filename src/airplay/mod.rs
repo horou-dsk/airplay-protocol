@@ -7,4 +7,5 @@ pub struct AirPlayConfig {
 pub mod lib;
 pub use lib::AirPlay;
 pub mod property_list;
+pub mod server;
 pub mod session;

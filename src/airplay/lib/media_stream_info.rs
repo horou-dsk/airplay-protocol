@@ -1,8 +1,7 @@
-pub(super) enum StreamType {
-    Audio,
-    Video,
-}
+use super::{audio_stream_info::AudioStreamInfo, video_stream_info::VideoStreamInfo};
 
-pub(super) trait MediaStreamInfo {
-    fn stream_type(&self) -> StreamType;
+#[derive(Debug)]
+pub enum MediaStreamInfo {
+    Audio(AudioStreamInfo),
+    Video(VideoStreamInfo),
 }

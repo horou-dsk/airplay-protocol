@@ -21,7 +21,7 @@ impl AirPlayBonjour {
             ("vv", "2".to_string()),
             ("model", "AppleTV3,2C".to_string()),
             ("rhd", "5.6.0.0".to_string()),
-            ("pw", "false".to_string()),
+            ("pw", "true".to_string()), // 是否需要密码认证
             (
                 "pk",
                 "f3769a660475d27b4f6040381d784645e13e21c53e6d2da6a8c3d757086fc336".to_string(),
