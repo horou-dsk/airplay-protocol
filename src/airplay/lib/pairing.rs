@@ -14,7 +14,7 @@ use crate::airplay::property_list;
 
 type Aes128Ctr64BE = ctr::Ctr64BE<aes::Aes128>;
 
-type Srp6Air = Srp6<256, 16>;
+type Srp6Air = Srp6_2048; // Srp6<256, 16>;
 
 struct AirSrp(Srp6Air);
 
@@ -82,22 +82,27 @@ impl Pairing {
             self.username = plist_data["user"].clone().into_string();
             let username = self.username.as_ref().unwrap().clone();
             let (salt, verifier) = AirSrp::default().generate_new_user_secrets(&username, "2222");
-            result.insert("pk".to_string(), plist::Value::Data(verifier.to_vec()));
-            result.insert("salt".to_string(), plist::Value::Data(salt.to_vec()));
+            // let salt = Salt::from_bytes_le(&self.salt);
+            // let verifer = PasswordVerifier
             let user = UserDetails {
                 username,
                 salt,
                 verifier,
             };
+            let (handshake, proof_verifier) = AirSrp::default().start_handshake(&user);
+            result.insert(
+                "pk".to_string(),
+                plist::Value::Data(handshake.B.to_vec().into_iter().rev().collect()),
+            );
+            result.insert("salt".to_string(), plist::Value::Data(handshake.s.to_vec()));
             // let user = mock
-            let (_handshake, proof_verifier) = AirSrp::default().start_handshake(&user);
             self.proof_verifier = Some(proof_verifier);
         } else if plist_data.contains_key("pk") && plist_data.contains_key("proof") {
             let a = plist_data["pk"].as_data().unwrap();
             let m = plist_data["proof"].as_data().unwrap();
-            let a = PublicKey::from_bytes_le(a);
-            let m1 = Proof::from_bytes_le(m);
-            let proof = HandshakeProof::<256, 16> { A: a, M1: m1 };
+            let a = PublicKey::from_bytes_be(a);
+            let m1 = Proof::from_bytes_be(m);
+            let proof = HandshakeProof::<256, 256> { A: a, M1: m1 };
             if let Some(proof_verifier) = self.proof_verifier.take() {
                 log::info!("{:?}", proof_verifier.verify_proof(&proof));
             }
