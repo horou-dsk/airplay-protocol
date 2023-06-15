@@ -41,7 +41,7 @@ pub struct AirPlay {
 }
 
 impl AirPlay {
-    pub fn pair_setup_pin(&self, data: &[u8]) -> Option<Bytes> {
+    pub fn pair_setup_pin(&mut self, data: &[u8]) -> Option<Bytes> {
         self.pairing.pair_setup_pin(data)
     }
 

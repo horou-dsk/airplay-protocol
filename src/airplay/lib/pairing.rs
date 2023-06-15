@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use aes::cipher::{KeyIvInit, StreamCipher};
 use bytes::{BufMut, Bytes};
 use curve25519_dalek::scalar::Scalar;
@@ -6,10 +8,34 @@ use ed25519_dalek::{Signature, Signer, SigningKey, PUBLIC_KEY_LENGTH};
 use rand::rngs::OsRng;
 use rand::Rng;
 use sha2::{Digest, Sha512};
+use srp6::*;
 
 use crate::airplay::property_list;
 
 type Aes128Ctr64BE = ctr::Ctr64BE<aes::Aes128>;
+
+type Srp6Air = Srp6<256, 16>;
+
+struct AirSrp(Srp6Air);
+
+impl Default for AirSrp {
+    fn default() -> Self {
+        Self(Srp6Air::new(
+            Generator::from(7),
+            "93BE8A2C0FAC7442480A9253539E32A6DE3C3F33D4B7DB4431344F41CAA975E28B626D23E553FCB1450850777ED260D2FFE1FB9816A6ED7164CD76D05733DE4EFA931514D008B7EA8A4BAC45AB7DFD8C346B924E04C37420EEAFCD486159FB49A236DC77B6884FBF3907F0AB8ED789692BA424C81E35A61A38C72EC3A7268B069FCBFBC236AA3167A11E1FD5CD1275021BAC8493CA3AAEBF4AEF685E93A0387C10861F8DB1C500D3DE1823D905EAB421D1E0FD92CEE61F44FF439D07388F1BA56DA112589878D565A199A3C27630DA8FAD31E07EE0A46269B302F215DD972CF9E746867F608DA4DA28A69399708FADC795A6B16276EB6EF5A90636D86DAF03A5"
+                .try_into()
+                .unwrap()
+        ).unwrap())
+    }
+}
+
+impl Deref for AirSrp {
+    type Target = Srp6Air;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 pub(super) struct Pairing {
     keypair: SigningKey,
@@ -19,6 +45,8 @@ pub(super) struct Pairing {
     ecdh_secret: Bytes,
     pair_verified: bool,
     salt: [u8; 16],
+    username: Option<String>,
+    proof_verifier: Option<HandshakeProofVerifier>,
 }
 
 impl Default for Pairing {
@@ -26,6 +54,11 @@ impl Default for Pairing {
         let mut csprng = rand::rngs::OsRng {};
         let keypair = SigningKey::generate(&mut csprng);
         let salt = rand::thread_rng().gen::<[u8; 16]>();
+        log::info!(
+            "salt = {:?}\npublic_key = {:?}",
+            salt,
+            keypair.verifying_key().as_bytes()
+        );
         Self {
             keypair,
             ed_theirs: Default::default(),
@@ -34,30 +67,49 @@ impl Default for Pairing {
             ecdh_secret: Default::default(),
             pair_verified: Default::default(),
             salt,
+            username: None,
+            proof_verifier: None,
         }
     }
 }
 
 impl Pairing {
-    pub fn pair_setup_pin(&self, data: &[u8]) -> Option<Bytes> {
+    pub fn pair_setup_pin(&mut self, data: &[u8]) -> Option<Bytes> {
         let plist_data: plist::Dictionary = plist::from_bytes(data).unwrap();
-        log::info!("{:#?}", plist_data);
+        log::info!("{:?}", plist_data);
         let mut result = plist::Dictionary::default();
         if plist_data.contains_key("method") && plist_data.contains_key("user") {
-            result.insert(
-                "pk".to_string(),
-                plist::Value::Data(self.keypair.verifying_key().to_bytes().to_vec()),
-            );
-            result.insert("salt".to_string(), plist::Value::Data(self.salt.to_vec()));
+            self.username = plist_data["user"].clone().into_string();
+            let username = self.username.as_ref().unwrap().clone();
+            let (salt, verifier) = AirSrp::default().generate_new_user_secrets(&username, "2222");
+            result.insert("pk".to_string(), plist::Value::Data(verifier.to_vec()));
+            result.insert("salt".to_string(), plist::Value::Data(salt.to_vec()));
+            let user = UserDetails {
+                username,
+                salt,
+                verifier,
+            };
+            // let user = mock
+            let (_handshake, proof_verifier) = AirSrp::default().start_handshake(&user);
+            self.proof_verifier = Some(proof_verifier);
         } else if plist_data.contains_key("pk") && plist_data.contains_key("proof") {
-            result.insert(
-                "proof".to_string(),
-                plist::Value::Data(property_list::compute_m2(
-                    &self.salt,
-                    plist_data["pk"].as_data().unwrap(),
-                    plist_data["proof"].as_data().unwrap(),
-                )),
-            );
+            let a = plist_data["pk"].as_data().unwrap();
+            let m = plist_data["proof"].as_data().unwrap();
+            let a = PublicKey::from_bytes_le(a);
+            let m1 = Proof::from_bytes_le(m);
+            let proof = HandshakeProof::<256, 16> { A: a, M1: m1 };
+            if let Some(proof_verifier) = self.proof_verifier.take() {
+                log::info!("{:?}", proof_verifier.verify_proof(&proof));
+            }
+            // result.insert(
+            //     "proof".to_string(),
+            //     plist::Value::Data(property_list::compute_m2(
+            //         &self.salt,
+            //         plist_data["pk"].as_data().unwrap(),
+            //         plist_data["proof"].as_data().unwrap(),
+            //     )),
+            // );
+            result.insert("proof".to_string(), plist::Value::Data(self.srp_m1()));
         } else if plist_data.contains_key("epk") && plist_data.contains_key("authTag") {
             result.insert("epk".to_string(), plist_data["epk"].clone());
             result.insert("authTag".to_string(), plist_data["authTag"].clone());
@@ -158,5 +210,22 @@ impl Pairing {
 
     pub fn get_shared_secret(&self) -> &Bytes {
         &self.ecdh_secret
+    }
+
+    fn srp_m1(&self) -> Vec<u8> {
+        let salt = Salt::from_bytes_be(&self.salt);
+        let verifier = PasswordVerifier::from_bytes_be(&self.pair_setup());
+        let user = UserDetails {
+            username: self.username.as_ref().unwrap().clone(),
+            salt,
+            verifier,
+        };
+        // let user = mock
+        let (handshake, _proof_verifier) = Srp6_4096::default().start_handshake(&user);
+        let password = "2222";
+        let (proof, _strong_proof_verifier) = handshake
+            .calculate_proof(user.username.as_str(), password)
+            .unwrap();
+        proof.M1.to_vec()
     }
 }
