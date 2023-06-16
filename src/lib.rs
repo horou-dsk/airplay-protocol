@@ -6,6 +6,7 @@ pub mod airplay;
 pub mod airplay_bonjour;
 pub mod control_handle;
 pub mod net;
+pub mod srp;
 mod utils;
 
 extern "C" {
