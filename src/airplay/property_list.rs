@@ -129,9 +129,5 @@ pub fn compute_m2(salt: &[u8], client_pk: &[u8], client_proof: &[u8]) -> Vec<u8>
     hasher.update(k1);
     hasher.update(k2);
 
-    let result = hasher.finalize().to_vec();
-
-    log::info!("{:?} {}", result, result.len());
-
-    result
+    hasher.finalize().to_vec()
 }

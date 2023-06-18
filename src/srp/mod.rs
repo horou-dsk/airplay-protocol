@@ -1,13 +1,22 @@
 #![allow(non_snake_case)]
 
+pub mod airsrp;
+
 use num_bigint::{BigInt, RandBigInt, Sign, ToBigInt};
 use rand::Rng;
 use sha1::{Digest, Sha1};
 
-#[derive(Debug)]
+#[macro_export]
+macro_rules! bnum_bytes_len {
+    ($var:expr) => {
+        ($var.bits() as usize + 7) / 8
+    };
+}
+
+#[derive(Debug, Clone)]
 pub struct NGConstant {
-    N: BigInt,
-    g: BigInt,
+    pub N: BigInt,
+    pub g: BigInt,
 }
 
 impl NGConstant {

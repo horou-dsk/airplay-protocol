@@ -28,7 +28,7 @@ async fn main() -> tokio::io::Result<()> {
     let port = 31927;
     let name = "RustAirplay";
 
-    let _air = AirPlayBonjour::new(name, port);
+    let _air = AirPlayBonjour::new(name, port, true);
 
     let addr: SocketAddr = ([0, 0, 0, 0], port).into();
     let airplay_config = AirPlayConfig {

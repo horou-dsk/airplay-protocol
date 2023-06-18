@@ -8,6 +8,7 @@ version = "0.1.0"
 [dependencies]
 aes = "0.8.2"
 # async-zeroconf = "0.2.2"
+aes-gcm = "0.10"
 anyhow = "1"
 bnum = {version = "0.7", features = ["nightly"]}
 byteorder = "1"

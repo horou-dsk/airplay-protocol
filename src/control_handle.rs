@@ -178,9 +178,9 @@ impl ServiceRequest for ControlHandle {
 
             // log::info!("headers = {:?}", req.headers());
             let res = match req.protocol() {
-                Protocol::Http1_1 => match req.uri() {
-                    "/empty" => Ok(Response::http_ok()),
-                    "/info" => {
+                Protocol::Http1_1 => match (req.method(), req.uri()) {
+                    (Method::Get, "/empty") => Ok(Response::http_ok()),
+                    (Method::Get, "/info") => {
                         let mut resp = Response::http_ok().text_body(r#"{"a": 123}"#);
                         resp.headers_mut().insert(
                             "Content-Type",
@@ -188,6 +188,8 @@ impl ServiceRequest for ControlHandle {
                         );
                         Ok(resp)
                     }
+                    (Method::Post, "/pair-pin-start") => self.handle_pair_pin_start(req).await,
+                    (Method::Post, "/pair-setup-pin") => self.handle_pair_setup_pin(req).await,
                     _ => Ok(Response::http_ok().text_body("Hello World")),
                 },
                 Protocol::Rtsp1_0 => match (req.method(), req.uri()) {

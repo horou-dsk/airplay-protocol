@@ -18,7 +18,9 @@ impl Response {
             HeaderValue::from_bytes(b"AirTunes/220.68").unwrap(),
         );
         headers.insert("Content-Length", HeaderValue::from_bytes(b"0").unwrap());
-        headers.insert("cseq", req.headers().get("cseq").unwrap().clone());
+        if let Some(cseq) = req.headers().get("cseq") {
+            headers.insert("cseq", cseq.clone());
+        }
         Self {
             protocol: Protocol::Rtsp1_0,
             status: StatusCode::OK,
