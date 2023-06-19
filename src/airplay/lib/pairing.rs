@@ -183,7 +183,7 @@ impl Pairing {
 
     fn init_cipher(&self) -> Aes128Ctr64BE {
         let mut hasher = Sha512::new();
-        hasher.update("Pair-Verify-AES-Key".as_bytes());
+        hasher.update(b"Pair-Verify-AES-Key");
         // log::info!("ecdh_secret = {:?}", self.ecdh_secret);
         hasher.update(self.ecdh_secret);
 
@@ -191,7 +191,7 @@ impl Pairing {
         shared_secret_sha512_aes_key.copy_from_slice(&hasher.finalize()[..16]);
 
         let mut hasher = Sha512::new();
-        hasher.update("Pair-Verify-AES-IV".as_bytes());
+        hasher.update(b"Pair-Verify-AES-IV");
         hasher.update(self.ecdh_secret);
 
         let mut shared_secret_sha512_aes_iv = [0u8; 16];
@@ -209,13 +209,13 @@ impl Pairing {
         if let Some(session_key) = &self.session_key {
             log::info!("session_key = {:?}", session_key);
             let mut hasher = Sha512::new();
-            hasher.update("Pair-Setup-AES-Key".as_bytes());
+            hasher.update(b"Pair-Setup-AES-Key");
             hasher.update(session_key);
 
             let mut aes_key = [0u8; 16];
             aes_key.copy_from_slice(&hasher.finalize_reset()[..16]);
 
-            hasher.update("Pair-Setup-AES-IV".as_bytes());
+            hasher.update(b"Pair-Setup-AES-IV");
             hasher.update(session_key);
             let mut aes_iv = [0u8; 16];
             aes_iv.copy_from_slice(&hasher.finalize_reset()[..16]);
@@ -226,10 +226,18 @@ impl Pairing {
             let data = [epk, auth_tag].concat();
             let result = cipher.decrypt(iv, &*data).unwrap();
 
-            let mut rng = OsRng;
-            let private_key = Scalar::from_bits(result.try_into().unwrap());
-            let ecdh_ours = private_key * X25519_BASEPOINT;
-            self.ecdh_ours = ecdh_ours.0;
+            log::info!("descrypted = {:?}", result);
+
+            let descrypted_key = result.try_into().unwrap();
+
+            let signature = SigningKey::from_bytes(&descrypted_key);
+            let signature = signature.sign(&self.pair_setup());
+
+            // let verifying_key = VerifyingKey::from_bytes(&descrypted_key).unwrap();
+            // let mut rng = OsRng;
+            // let private_key = Scalar::random(&mut rng);
+            // let ecdh_ours = private_key * X25519_BASEPOINT;
+            // self.ecdh_ours = ecdh_ours.0;
 
             // let ecdh_theirs = MontgomeryPoint(result.try_into().unwrap());
 
@@ -237,14 +245,19 @@ impl Pairing {
 
             // self.ecdh_secret = ecdh_secret.0;
 
+            // self.keypair.sign(ec)
+
             // let signing = Signature::from_bytes(&self.ecdh_ours).unwrap();
 
             // let cipher = Aes128Gcm::new(ecdh_theirs.0[..16].into());
 
             // let auth_tag = GenericArray::from_slice(&ecdh_theirs.0[16..32]);
-            let encrypted = cipher.encrypt(iv, self.ecdh_ours.as_ref()).unwrap();
 
-            // let encrypted = cipher.encrypt(iv, signing).unwrap();
+            // let cipher = Aes128Gcm::new(descrypted_key[..16].try_into().unwrap());
+
+            // let encrypted = cipher.encrypt(iv, verifying_key.as_ref()).unwrap();
+
+            let encrypted = cipher.encrypt(iv, signature.to_vec().as_ref()).unwrap();
 
             // log::info!("encrypted = {:?}", encrypted);
 
