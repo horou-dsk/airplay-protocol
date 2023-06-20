@@ -25,7 +25,6 @@ pub(super) struct Pairing {
     ecdh_theirs: Bytes,
     ecdh_secret: [u8; 32],
     pair_verified: bool,
-    username: Option<String>,
     handshake: Option<Handshake>,
     session_key: Option<Vec<u8>>,
 }
@@ -34,11 +33,6 @@ impl Default for Pairing {
     fn default() -> Self {
         let mut csprng = rand::rngs::OsRng {};
         let keypair = SigningKey::generate(&mut csprng);
-        // log::info!(
-        //     "salt = {:?}\npublic_key = {:?}",
-        //     salt,
-        //     keypair.verifying_key().as_bytes()
-        // );
         Self {
             keypair,
             ed_theirs: Default::default(),
@@ -46,7 +40,6 @@ impl Default for Pairing {
             ecdh_theirs: Default::default(),
             ecdh_secret: Default::default(),
             pair_verified: Default::default(),
-            username: None,
             handshake: None,
             session_key: None,
         }
@@ -59,9 +52,8 @@ impl Pairing {
         log::info!("{:?}", plist_data);
         let mut result = plist::Dictionary::default();
         if plist_data.contains_key("method") && plist_data.contains_key("user") {
-            self.username = plist_data["user"].clone().into_string();
-            let username = self.username.as_ref().unwrap().clone();
-            let air_srp = AirSrp::new(NgType::SrpNg2048, &username, "2222");
+            let username = plist_data["user"].as_string().unwrap();
+            let air_srp = AirSrp::new(NgType::SrpNg2048, username, "2222");
             let handshake = air_srp.create_salted_verification_key(self.pair_setup());
             let salt = handshake.salt.to_bytes_be().1;
             result.insert(
@@ -72,28 +64,13 @@ impl Pairing {
             self.handshake = Some(handshake);
         } else if plist_data.contains_key("pk") && plist_data.contains_key("proof") {
             let a = plist_data["pk"].as_data().unwrap();
-            let m = plist_data["proof"].as_data().unwrap();
+            // 缺少验证 M1 是否相等
+            // let m = plist_data["proof"].as_data().unwrap();
             if let Some(handshake) = self.handshake.take() {
-                // let salt = BigInt::from_bytes_be(Sign::Plus, &self.salt);
-                // let m = BigInt::from_bytes_be(Sign::Plus, m);
                 let ver = handshake.new_verifier(a);
-                // log::info!("{:?}", ver);
-                // log::info!(
-                //     "{:?}",
-                //     property_list::compute_m2(&handshake.salt.to_bytes_be().1, a, m)
-                // );
                 result.insert("proof".to_string(), plist::Value::Data(ver.M2.to_vec()));
-
                 self.session_key = Some(ver.session_key);
             }
-            // result.insert(
-            //     "proof".to_string(),
-            //     plist::Value::Data(property_list::compute_m2(
-            //         &self.salt,
-            //         plist_data["pk"].as_data().unwrap(),
-            //         plist_data["proof"].as_data().unwrap(),
-            //     )),
-            // );
         } else if plist_data.contains_key("epk") && plist_data.contains_key("authTag") {
             let epk = plist_data["epk"].as_data().unwrap();
             let auth_tag = plist_data["authTag"].as_data().unwrap();
@@ -219,7 +196,13 @@ impl Pairing {
             hasher.update(session_key);
             let mut aes_iv = [0u8; 16];
             aes_iv.copy_from_slice(&hasher.finalize_reset()[..16]);
-            aes_iv[15] += 1;
+            for ivv in aes_iv.iter_mut().rev() {
+                *ivv += 1;
+                if *ivv != 0 {
+                    break;
+                }
+            }
+            // aes_iv[15] += 1;
             let cipher = Aes128Gcm::new(&aes_key.into());
 
             let iv = GenericArray::from_slice(&aes_iv);
@@ -228,47 +211,11 @@ impl Pairing {
 
             log::info!("descrypted = {:?}", result);
 
-            let descrypted_key = result.try_into().unwrap();
+            // let descrypted_key = result.try_into().unwrap();
 
-            let signature = SigningKey::from_bytes(&descrypted_key);
-            let signature = signature.sign(&self.pair_setup());
+            // TODO: 无资料，逻辑缺失。
 
-            // let verifying_key = VerifyingKey::from_bytes(&descrypted_key).unwrap();
-            // let mut rng = OsRng;
-            // let private_key = Scalar::random(&mut rng);
-            // let ecdh_ours = private_key * X25519_BASEPOINT;
-            // self.ecdh_ours = ecdh_ours.0;
-
-            // let ecdh_theirs = MontgomeryPoint(result.try_into().unwrap());
-
-            // let ecdh_secret = ecdh_theirs * private_key;
-
-            // self.ecdh_secret = ecdh_secret.0;
-
-            // self.keypair.sign(ec)
-
-            // let signing = Signature::from_bytes(&self.ecdh_ours).unwrap();
-
-            // let cipher = Aes128Gcm::new(ecdh_theirs.0[..16].into());
-
-            // let auth_tag = GenericArray::from_slice(&ecdh_theirs.0[16..32]);
-
-            // let cipher = Aes128Gcm::new(descrypted_key[..16].try_into().unwrap());
-
-            // let encrypted = cipher.encrypt(iv, verifying_key.as_ref()).unwrap();
-
-            let encrypted = cipher.encrypt(iv, signature.to_vec().as_ref()).unwrap();
-
-            // log::info!("encrypted = {:?}", encrypted);
-
-            // log::info!("e2 = {:?}", e2);
-
-            // let mut rng = OsRng;
-            // let private_key = Scalar::random(&mut rng);
-            // let ecdh_ours = private_key * X25519_BASEPOINT;
-            // self.ecdh_ours = Bytes::copy_from_slice(ecdh_ours.as_bytes());
-
-            Some((encrypted[..32].to_vec(), encrypted[32..].to_vec()))
+            Some((vec![0; 32], vec![0; 16]))
         } else {
             None
         }

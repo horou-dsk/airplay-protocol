@@ -1,3 +1,5 @@
+#![allow(unused_variables)]
+
 use aes::{
     cipher::{generic_array::GenericArray, typenum::U16},
     Aes128,

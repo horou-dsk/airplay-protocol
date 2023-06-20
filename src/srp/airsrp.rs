@@ -71,7 +71,6 @@ fn H_nn_pad(n1: &BigInt, n2: &BigInt, padded_len: usize) -> BigInt {
     bin[offset_n1..offset_n1 + len_n1].copy_from_slice(&n1.to_bytes_be().1);
     bin[offset_n2..offset_n2 + len_n2].copy_from_slice(&n2.to_bytes_be().1);
     let buff = hash_bytes(&bin);
-    // println!("{:?}", buff);
     BigInt::from_bytes_be(Sign::Plus, &buff)
 }
 
@@ -164,16 +163,11 @@ D120A93AD2CAFFFFFFFFFFFFFFFF",
         let padded_len = bnum_bytes_len!(self.ng.N);
         let mut padded = vec![0; padded_len];
         padded[padded_len - v.len()..padded_len].copy_from_slice(v);
-        // bytes_to_bint!(&padded)
         padded
-        // H_nn_pad(&self.ng.N, &self.ng.g, bnum_bytes_len!(self.ng.N))
     }
 
     pub fn create_salted_verification_key(self, public_key: [u8; PUBLIC_KEY_LENGTH]) -> Handshake {
         let ng = &self.ng;
-        // let s = bytes_to_bint!(&[
-        //     90, 89, 188, 255, 38, 3, 17, 121, 168, 48, 135, 179, 107, 45, 206, 159
-        // ]);
         let s = rand_bigint(128);
         let x = calculate_x(&s, self.username.as_bytes(), self.password.as_bytes());
         let v = ng.g.modpow(&x, &ng.N);
@@ -196,10 +190,6 @@ D120A93AD2CAFFFFFFFFFFFFFFFF",
         secret_key: Option<&[u8]>,
     ) -> (BigInt, BigInt) {
         let ng = &self.ng;
-        // let b = bytes_to_bint!(&[
-        //     198, 84, 58, 140, 246, 200, 199, 42, 50, 162, 206, 152, 128, 3, 252, 228, 39, 145, 66,
-        //     221, 0, 79, 94, 108, 238, 142, 228, 61, 198, 54, 43, 235
-        // ]); //
         let b = secret_key
             .map(|v| bytes_to_bint!(v))
             .unwrap_or_else(|| rand_bigint(256));
@@ -208,9 +198,6 @@ D120A93AD2CAFFFFFFFFFFFFFFFF",
         let tmp1 = k * v;
         let tmp2 = ng.g.modpow(&b, &ng.N);
         let B = (tmp1 + tmp2) % &ng.N;
-
-        // let B = bint_to_bytes!(B);
-        // let b = bint_to_bytes!(b);
 
         (b, B)
     }
@@ -250,24 +237,6 @@ impl Handshake {
         let m1 = calculate_M(ng, &self.username, &self.salt, &A, B, &session_key);
         let m2 = calculate_H_AMK(&A, &m1, &session_key);
 
-        // let tmp1 = &A % &ng.N;
-        // if tmp1 == 0.into() {
-        //     eprintln!("error tmp1 zero!!");
-        // }
-        // let _k = H_nn_pad(&ng.N, &ng.g, bnum_bytes_len!(ng.N)); // 未使用
-        // let u = H_nn_pad(&A, B, bnum_bytes_len!(ng.N));
-
-        // let tmp1 = self.v.modpow(&u, &ng.N);
-        // let tmp2 = &A * tmp1;
-
-        // let S = tmp2.modpow(&self.b, &ng.N);
-
-        // let session_key = hash_num(&S);
-
-        // let M = calculate_M(ng, &self.username, &self.salt, &A, B, &session_key);
-
-        // let H_AMK = calculate_H_AMK(&A, &M, &session_key);
-
         Verifier {
             M1: m1,
             M2: m2,
@@ -275,6 +244,7 @@ impl Handshake {
         }
     }
 
+    // Homekit ?
     /* pub fn new_verifier(self, A: &[u8]) -> Verifier {
         let ng = &self.ng;
         let client_pk = bytes_to_bint!(A);
@@ -323,6 +293,7 @@ pub struct Verifier {
     pub M2: HashDest,
     pub session_key: Vec<u8>,
 }
+// Homekit?
 // #[derive(Debug)]
 // pub struct Verifier {
 //     pub key_proof_hash: HashDest,

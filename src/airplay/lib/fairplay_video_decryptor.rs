@@ -3,6 +3,7 @@ use sha2::{Digest, Sha512};
 
 type Aes128Ctr64BE = ctr::Ctr64BE<aes::Aes128>;
 
+#[derive(Clone)]
 pub struct FairPlayVideoDecryptor {
     aes_key: [u8; 16],
     shared_secret: Vec<u8>,

@@ -5,6 +5,7 @@ pub struct AirPlayConfig {
     pub fps: u16,
     pub port: u16,
 }
+pub mod airplay_consumer;
 pub mod lib;
 pub use lib::AirPlay;
 pub mod property_list;

@@ -118,7 +118,7 @@ impl ControlHandle {
                 MediaStreamInfo::Video(_video) => {
                     let mut video_server = session.video_server.write().await;
                     video_server
-                        .start()
+                        .start(session.airplay.read().await.video_decryptor(), todo!())
                         .await
                         .expect("start video server error!");
                     let setup = property_list::prepare_setup_video_response(

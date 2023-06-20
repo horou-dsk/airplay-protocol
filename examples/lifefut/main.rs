@@ -1,3 +1,6 @@
+#![allow(clippy::needless_lifetimes)]
+#![allow(dead_code)]
+#![allow(unused_variables)]
 trait MyFuture {
     fn poll(&self) -> u32;
 }

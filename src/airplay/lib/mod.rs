@@ -19,7 +19,7 @@ fn write_i32_le(bytes: &mut [u8], idx: usize, value: i32) {
     bytes[idx..idx + 4].copy_from_slice(&value.to_le_bytes());
 }
 
-mod audio_stream_info;
+pub mod audio_stream_info;
 mod fairplay;
 pub mod fairplay_video_decryptor;
 pub mod hand_garble;
@@ -30,14 +30,14 @@ mod omg_hax_const;
 mod pairing;
 mod rtsp;
 mod sap_hash;
-mod video_stream_info;
+pub mod video_stream_info;
 
 #[derive(Default)]
 pub struct AirPlay {
     pairing: Pairing,
     fairplay: FairPlay,
     rtsp: rtsp::Rtsp,
-    fairplay_video_decryptor: Option<FairPlayVideoDecryptor>,
+    // fairplay_video_decryptor: Option<FairPlayVideoDecryptor>,
 }
 
 impl AirPlay {
@@ -69,15 +69,23 @@ impl AirPlay {
         self.rtsp.teardown(data)
     }
 
-    pub fn decrypt_video(&mut self, video: &mut [u8]) {
-        if let Some(fairplay_video_decryptor) = self.fairplay_video_decryptor.as_mut() {
-            fairplay_video_decryptor.decrypt(video);
-        } else {
-            self.fairplay_video_decryptor = Some(FairPlayVideoDecryptor::new(
-                self.get_fairplay_aes_key(),
-                self.pairing.get_shared_secret().to_vec(),
-                self.rtsp.get_stream_connection_id(),
-            ))
-        }
+    pub fn video_decryptor(&self) -> FairPlayVideoDecryptor {
+        FairPlayVideoDecryptor::new(
+            self.get_fairplay_aes_key(),
+            self.pairing.get_shared_secret().to_vec(),
+            self.rtsp.get_stream_connection_id(),
+        )
     }
+
+    // pub fn decrypt_video(&mut self, video: &mut [u8]) {
+    //     if let Some(fairplay_video_decryptor) = self.fairplay_video_decryptor.as_mut() {
+    //         fairplay_video_decryptor.decrypt(video);
+    //     } else {
+    //         self.fairplay_video_decryptor = Some(FairPlayVideoDecryptor::new(
+    //             self.get_fairplay_aes_key(),
+    //             self.pairing.get_shared_secret().to_vec(),
+    //             self.rtsp.get_stream_connection_id(),
+    //         ))
+    //     }
+    // }
 }

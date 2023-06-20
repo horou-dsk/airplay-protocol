@@ -29,6 +29,7 @@ fn main() -> std::io::Result<()> {
             .stdout(Stdio::piped())
             .spawn()?;
         let child_stdin = child.stdin.as_mut().unwrap();
+        child_stdin.write_all(b"su\n")?;
         child_stdin.write_all(b"pidof hugep\n")?;
         // Close stdin to finish and avoid indefinite blocking
 

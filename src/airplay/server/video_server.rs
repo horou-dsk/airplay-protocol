@@ -6,14 +6,21 @@ use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio::{io, net::TcpListener};
 
+use crate::airplay::airplay_consumer::ArcAirPlayConsumer;
+use crate::airplay::lib::fairplay_video_decryptor::FairPlayVideoDecryptor;
+
 #[derive(Default)]
 pub struct VideoServer {
     server: Option<VideoServer1>,
 }
 
 impl VideoServer {
-    pub async fn start(&mut self) -> io::Result<()> {
-        self.server = Some(VideoServer1::start().await?);
+    pub async fn start(
+        &mut self,
+        video_decryptor: FairPlayVideoDecryptor,
+        consumer: ArcAirPlayConsumer,
+    ) -> io::Result<()> {
+        self.server = Some(VideoServer1::start(video_decryptor, consumer).await?);
         Ok(())
     }
 
@@ -28,14 +35,21 @@ struct VideoServer1 {
 }
 
 impl VideoServer1 {
-    pub async fn start() -> io::Result<Self> {
+    pub async fn start(
+        video_decryptor: FairPlayVideoDecryptor,
+        consumer: ArcAirPlayConsumer,
+    ) -> io::Result<Self> {
         let listener = TcpListener::bind("0.0.0.0:0").await?;
         let port = listener.local_addr()?.port();
         let task = tokio::task::spawn(async move {
             log::info!("VideoServer Starting...");
             loop {
                 let (stream, _) = listener.accept().await.unwrap();
-                tokio::task::spawn(video_hanlde(stream));
+                tokio::task::spawn(video_hanlde(
+                    stream,
+                    video_decryptor.clone(),
+                    consumer.clone(),
+                ));
             }
         });
         Ok(Self { task, port })
@@ -94,7 +108,7 @@ impl VideoDecoder {
                 self.state = DecoderState::ReadPayload;
             }
             DecoderState::ReadPayload => {
-                if self.payload_type == 1 || self.payload_type == 2 {
+                if self.payload_type == 0 || self.payload_type == 1 {
                     let mut payload_buf = BytesMut::with_capacity(self.payload_size as usize);
                     reader.read_exact(&mut payload_buf).await?;
                     self.state = DecoderState::ReadHeader;
@@ -118,7 +132,11 @@ impl VideoDecoder {
     }
 }
 
-async fn video_hanlde(mut stream: TcpStream) {
+async fn video_hanlde(
+    mut stream: TcpStream,
+    video_decryptor: FairPlayVideoDecryptor,
+    consumer: ArcAirPlayConsumer,
+) {
     log::info!("VideoServer 连接进入...");
     let mut decoder = VideoDecoder::new();
     loop {
