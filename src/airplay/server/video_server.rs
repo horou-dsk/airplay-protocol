@@ -1,7 +1,8 @@
-use std::time::Duration;
+#![allow(clippy::uninit_vec)]
 
-use bytes::{Buf, Bytes, BytesMut};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
+use std::io::Cursor;
+
+use tokio::io::{AsyncReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio::{io, net::TcpListener};
@@ -26,6 +27,10 @@ impl VideoServer {
 
     pub fn get_port(&self) -> u16 {
         self.server.as_ref().unwrap().port()
+    }
+
+    pub fn stop(&mut self) {
+        self.server.take();
     }
 }
 
@@ -59,7 +64,7 @@ impl VideoServer1 {
         self.port
     }
 
-    pub fn stop(self) {}
+    // pub fn stop(self) {}
 }
 
 impl Drop for VideoServer1 {
@@ -69,9 +74,9 @@ impl Drop for VideoServer1 {
 }
 
 pub struct VideoPacket {
-    pub payload_type: u8,
+    pub payload_type: u16,
     pub payload_size: usize,
-    pub payload: Bytes,
+    pub payload: Vec<u8>,
 }
 
 enum DecoderState {
@@ -81,8 +86,10 @@ enum DecoderState {
 
 struct VideoDecoder {
     state: DecoderState,
-    payload_size: u32,
-    payload_type: u8,
+    payload_size: usize,
+    payload_type: u16,
+    header_buf: [u8; 128],
+    payload_buf: [u8; 2048],
 }
 
 impl VideoDecoder {
@@ -91,31 +98,34 @@ impl VideoDecoder {
             state: DecoderState::ReadHeader,
             payload_size: 0,
             payload_type: 0,
+            header_buf: [0; 128],
+            payload_buf: [0; 2048],
         }
     }
 
     async fn decode(
         &mut self,
-        reader: &mut BufReader<&mut TcpStream>,
+        reader: &mut BufReader<TcpStream>,
     ) -> io::Result<Option<VideoPacket>> {
         match self.state {
             DecoderState::ReadHeader => {
-                let mut header_buf = [0; 128];
-                reader.read_exact(&mut header_buf).await?;
-                let mut header_buf = &header_buf[..];
-                self.payload_size = header_buf.get_u32_le();
-                self.payload_type = header_buf.get_u8();
+                reader.read_exact(&mut self.header_buf).await?;
+                log::info!("header {:?}", self.header_buf);
+                let mut head_cur = Cursor::new(&mut self.header_buf);
+                self.payload_size = head_cur.read_u32_le().await? as usize;
+                self.payload_type = head_cur.read_u16_le().await? & 0xFF;
                 self.state = DecoderState::ReadPayload;
             }
             DecoderState::ReadPayload => {
                 if self.payload_type == 0 || self.payload_type == 1 {
-                    let mut payload_buf = BytesMut::with_capacity(self.payload_size as usize);
+                    let mut payload_buf = Vec::with_capacity(self.payload_size);
+                    unsafe { payload_buf.set_len(self.payload_size) };
                     reader.read_exact(&mut payload_buf).await?;
                     self.state = DecoderState::ReadHeader;
                     return Ok(Some(VideoPacket {
                         payload_type: self.payload_type,
-                        payload_size: self.payload_size as usize,
-                        payload: payload_buf.freeze(),
+                        payload_size: self.payload_size,
+                        payload: payload_buf,
                     }));
                 } else {
                     log::info!(
@@ -123,7 +133,15 @@ impl VideoDecoder {
                         self.payload_type,
                         self.payload_size
                     );
-                    reader.consume(self.payload_size as usize);
+                    let mut already_size = 0;
+                    loop {
+                        let len = (self.payload_size - already_size).min(self.payload_buf.len());
+                        if len == 0 {
+                            break;
+                        }
+                        reader.read_exact(&mut self.payload_buf[..len]).await?;
+                        already_size += len;
+                    }
                     self.state = DecoderState::ReadHeader;
                 }
             }
@@ -132,31 +150,84 @@ impl VideoDecoder {
     }
 }
 
+fn prepare_picture_nal_units(payload: &mut [u8]) {
+    let mut idx = 0;
+    while idx < payload.len() {
+        let nalu_size = i32::from_be_bytes(payload[idx..idx + 4].try_into().unwrap()) as usize; //payload[idx + 3] | (payload[idx + 2] << 8) | ((payload[idx + 1] & 0xFF) << 16) | ((payload[idx] & 0xFF) << 24);
+        if nalu_size == 1 {
+            break;
+        }
+        if nalu_size > 0 {
+            payload[idx] = 0;
+            payload[idx + 1] = 0;
+            payload[idx + 2] = 0;
+            payload[idx + 3] = 1;
+            idx += nalu_size + 4;
+        }
+        if payload.len() - nalu_size > 4 {
+            log::error!("Video packet contains corrupted NAL unit. It might be decrypt error");
+            break;
+        }
+    }
+}
+
+fn prepare_sps_pps_nal_units(payload: &[u8]) -> Vec<u8> {
+    let sps_size = u16::from_be_bytes(payload[6..8].try_into().unwrap()) as usize;
+    let seq_par_set = &payload[9..9 + sps_size];
+
+    let payload = &payload[9 + sps_size..];
+
+    let pps_size = u16::from_be_bytes(payload[..2].try_into().unwrap()) as usize;
+    let pps = &payload[3..3 + pps_size];
+
+    let sps_pps_size = sps_size + pps_size + 8;
+    log::info!("SPS PPS length: {}", sps_pps_size);
+
+    let mut sps_pps = Vec::with_capacity(sps_pps_size);
+    sps_pps.extend_from_slice(&[0, 0, 0, 1]);
+    sps_pps.extend_from_slice(seq_par_set);
+    sps_pps.extend_from_slice(&[0, 0, 0, 1]);
+    sps_pps.extend_from_slice(pps);
+
+    sps_pps
+}
+
 async fn video_hanlde(
-    mut stream: TcpStream,
-    video_decryptor: FairPlayVideoDecryptor,
+    stream: TcpStream,
+    mut video_decryptor: FairPlayVideoDecryptor,
     consumer: ArcAirPlayConsumer,
 ) {
     log::info!("VideoServer 连接进入...");
     let mut decoder = VideoDecoder::new();
+    let mut reader = BufReader::new(stream);
     loop {
-        let mut reader = BufReader::new(&mut stream);
-        let result =
-            tokio::time::timeout(Duration::from_secs(10), decoder.decode(&mut reader)).await;
-        if let Ok(Ok(packet)) = result {
-            if let Some(video_packet) = packet {
-                log::info!(
-                    "payload_type = {}, payload_size = {}",
-                    video_packet.payload_type,
-                    video_packet.payload_size
-                );
+        log::info!("读取中...");
+        let result = decoder.decode(&mut reader).await;
+        match result {
+            Ok(packet) => {
+                if let Some(mut video_packet) = packet {
+                    // log::info!(
+                    //     "payload_type = {}, payload_size = {}",
+                    //     video_packet.payload_type,
+                    //     video_packet.payload_size
+                    // );
+                    match video_packet.payload_type {
+                        0 => {
+                            video_decryptor.decrypt(&mut video_packet.payload);
+                            prepare_picture_nal_units(&mut video_packet.payload);
+                            consumer.on_video(video_packet.payload.to_vec());
+                        }
+                        1 => {
+                            consumer.on_video(prepare_sps_pps_nal_units(&video_packet.payload));
+                        }
+                        _ => (),
+                    }
+                }
             }
-            // if amt == 0 {
-            //     log::warn!("read none...................");
-            //     // break;
-            // }
-        } else {
-            break;
+            Err(err) => {
+                log::error!("video server read error! {:?}", err);
+                break;
+            }
         }
     }
     log::info!("VideoServer 连接断开...");

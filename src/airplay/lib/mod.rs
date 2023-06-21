@@ -21,6 +21,7 @@ fn write_i32_le(bytes: &mut [u8], idx: usize, value: i32) {
 
 pub mod audio_stream_info;
 mod fairplay;
+pub mod fairplay_audio_decryptor;
 pub mod fairplay_video_decryptor;
 pub mod hand_garble;
 pub mod media_stream_info;

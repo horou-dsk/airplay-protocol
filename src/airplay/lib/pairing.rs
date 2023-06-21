@@ -209,9 +209,9 @@ impl Pairing {
             let data = [epk, auth_tag].concat();
             let result = cipher.decrypt(iv, &*data).unwrap();
 
-            log::info!("descrypted = {:?}", result);
+            log::info!("decrypted = {:?}", result);
 
-            // let descrypted_key = result.try_into().unwrap();
+            // let decrypted_key = result.try_into().unwrap();
 
             // TODO: 无资料，逻辑缺失。
 

@@ -1,10 +1,42 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
+use airplay2_protocol::airplay::airplay_consumer::{AirPlayConsumer, ArcAirPlayConsumer};
 use airplay2_protocol::airplay::AirPlayConfig;
 use airplay2_protocol::airplay_bonjour::AirPlayBonjour;
 use airplay2_protocol::control_handle::ControlHandle;
 use airplay2_protocol::net::server::Server as MServer;
 use env_logger::Env;
+
+struct VideoConsumer;
+
+impl AirPlayConsumer for VideoConsumer {
+    fn on_video(&self, bytes: Vec<u8>) {
+        log::info!("on_video...");
+    }
+
+    fn on_video_format(
+        &self,
+        video_stream_info: airplay2_protocol::airplay::lib::video_stream_info::VideoStreamInfo,
+    ) {
+        log::info!("on_video format...");
+    }
+
+    fn on_video_src_disconnect(&self) {
+        log::info!("on_video disconnect...");
+    }
+
+    fn on_audio_format(
+        &self,
+        audio_stream_info: airplay2_protocol::airplay::lib::audio_stream_info::AudioStreamInfo,
+    ) {
+        log::info!("on_audio_format...");
+    }
+
+    fn on_audio(&self, bytes: Vec<u8>) {
+        log::info!("on_audio...");
+    }
+}
 
 #[tokio::main]
 async fn main() -> tokio::io::Result<()> {
@@ -28,7 +60,11 @@ async fn main() -> tokio::io::Result<()> {
         fps: 30,
         port,
     };
-    let mserver = MServer::bind(addr, ControlHandle::new(airplay_config));
+    let video_consumer: ArcAirPlayConsumer = Arc::new(Box::new(VideoConsumer));
+    let mserver = MServer::bind(
+        addr,
+        ControlHandle::new(airplay_config, video_consumer.clone(), video_consumer),
+    );
     mserver.run().await?;
     Ok(())
 }

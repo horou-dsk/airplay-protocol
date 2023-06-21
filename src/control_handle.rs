@@ -4,6 +4,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     airplay::{
+        airplay_consumer::ArcAirPlayConsumer,
         lib::media_stream_info::MediaStreamInfo,
         property_list,
         session::{ARSession, SessionManager},
@@ -20,13 +21,21 @@ use crate::{
 pub struct ControlHandle {
     airplay_config: AirPlayConfig,
     session_manager: Mutex<SessionManager>,
+    audio_consumer: ArcAirPlayConsumer,
+    video_consumer: ArcAirPlayConsumer,
 }
 
 impl ControlHandle {
-    pub fn new(airplay_config: AirPlayConfig) -> Self {
+    pub fn new(
+        airplay_config: AirPlayConfig,
+        video_consumer: ArcAirPlayConsumer,
+        audio_consumer: ArcAirPlayConsumer,
+    ) -> Self {
         Self {
             airplay_config,
             session_manager: Mutex::new(SessionManager::default()),
+            audio_consumer,
+            video_consumer,
         }
     }
 
@@ -115,10 +124,14 @@ impl ControlHandle {
         let data = session.airplay.write().await.rstp_setup(&data);
         if let Some(data) = data {
             match data {
-                MediaStreamInfo::Video(_video) => {
+                MediaStreamInfo::Video(video) => {
+                    self.video_consumer.on_video_format(video);
                     let mut video_server = session.video_server.write().await;
                     video_server
-                        .start(session.airplay.read().await.video_decryptor(), todo!())
+                        .start(
+                            session.airplay.read().await.video_decryptor(),
+                            self.video_consumer.clone(),
+                        )
                         .await
                         .expect("start video server error!");
                     let setup = property_list::prepare_setup_video_response(
@@ -128,7 +141,11 @@ impl ControlHandle {
                     );
                     Ok(resp.bytes_body(setup))
                 }
-                MediaStreamInfo::Audio(_audio) => Ok(resp),
+                MediaStreamInfo::Audio(audio) => {
+                    self.audio_consumer.on_audio_format(audio);
+                    // let mut audio_server = session.
+                    Ok(resp)
+                }
             }
         } else {
             Ok(resp)

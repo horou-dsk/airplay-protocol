@@ -5,9 +5,9 @@ type Aes128Ctr64BE = ctr::Ctr64BE<aes::Aes128>;
 
 #[derive(Clone)]
 pub struct FairPlayVideoDecryptor {
-    aes_key: [u8; 16],
-    shared_secret: Vec<u8>,
-    stream_connection_id: String,
+    // aes_key: [u8; 16],
+    // shared_secret: Vec<u8>,
+    // stream_connection_id: String,
     aes_ctr_decrypt: Aes128Ctr64BE,
     og: [u8; 16],
     next_decrypt_count: usize,
@@ -36,9 +36,9 @@ impl FairPlayVideoDecryptor {
         let decrypt_aes_iv = &hash2[..16];
 
         Self {
-            aes_key,
-            shared_secret,
-            stream_connection_id,
+            // aes_key,
+            // shared_secret,
+            // stream_connection_id,
             aes_ctr_decrypt: Aes128Ctr64BE::new(decrypt_aes_key.into(), decrypt_aes_iv.into()),
             og: [0; 16],
             next_decrypt_count: 0,
