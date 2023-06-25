@@ -89,7 +89,7 @@ pub fn prepare_info_response(airplay_config: &AirPlayConfig) -> Bytes {
 pub fn prepare_setup_audio_response(data_port: u16, control_port: u16) -> Bytes {
     let mut data_stream = plist::Dictionary::default();
     data_stream.insert("dataPort".to_string(), data_port.into());
-    data_stream.insert("type".to_string(), 90.into());
+    data_stream.insert("type".to_string(), 96.into());
     data_stream.insert("controlPort".to_string(), control_port.into());
     let streams = Value::Array(vec![Value::Dictionary(data_stream)]);
     let mut response = plist::Dictionary::default();

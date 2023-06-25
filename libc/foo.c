@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stddef.h>
 
 uint8_t foo(uint8_t a, uint8_t b)
 {

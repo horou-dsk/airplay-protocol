@@ -1,12 +1,16 @@
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
-use super::{server::video_server::VideoServer, AirPlay};
+use super::{
+    server::{audio_server::AudioServer, video_server::VideoServer},
+    AirPlay,
+};
 
 pub struct Session {
     pub id: String,
     pub airplay: Arc<RwLock<AirPlay>>,
     pub video_server: Arc<RwLock<VideoServer>>,
+    pub audio_server: AudioServer,
 }
 
 impl Session {
@@ -15,6 +19,7 @@ impl Session {
             id,
             airplay: Arc::new(RwLock::new(AirPlay::default())),
             video_server: Arc::new(RwLock::new(VideoServer::default())),
+            audio_server: AudioServer::default(),
         }
     }
 }

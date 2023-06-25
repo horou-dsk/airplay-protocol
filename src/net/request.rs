@@ -19,6 +19,9 @@ impl<'a> Body<'a> {
 
     pub async fn array(mut self) -> io::Result<Vec<u8>> {
         // self.reader.take(limit)
+        if self.len == 0 {
+            return Ok(vec![]);
+        }
         let mut result = Vec::with_capacity(self.len);
         const BUF_LEN: usize = 512;
         let mut buf = [0; BUF_LEN];
@@ -52,7 +55,7 @@ pub struct Request<'a> {
     method: Method,
     protocol: Protocol,
     uri: &'a str,
-    body: Body<'a>,
+    body: Option<Body<'a>>,
     headers: HeaderMap,
 }
 
@@ -68,7 +71,7 @@ impl<'a> Request<'a> {
             method,
             protocol,
             uri,
-            body,
+            body: Some(body),
             headers,
         }
     }
@@ -85,8 +88,12 @@ impl<'a> Request<'a> {
         self.uri
     }
 
+    pub fn take_body(&mut self) -> Option<Body<'a>> {
+        self.body.take()
+    }
+
     pub fn into_body(self) -> Body<'a> {
-        self.body
+        self.body.unwrap()
     }
 
     pub fn headers(&self) -> &HeaderMap {

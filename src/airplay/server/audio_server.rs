@@ -1,6 +1,8 @@
+use std::{collections::HashMap, time::Instant};
+
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncReadExt, BufReader},
-    net::{TcpListener, TcpStream},
+    net::UdpSocket,
     sync::Mutex,
     task::JoinHandle,
 };
@@ -28,7 +30,7 @@ impl AudioServer {
         self.server.lock().await.as_ref().unwrap().port()
     }
 
-    pub async fn stop(&mut self) {
+    pub async fn stop(&self) {
         self.server.lock().await.take();
     }
 }
@@ -44,18 +46,11 @@ impl ServerInner {
         consumer: ArcAirPlayConsumer,
     ) -> io::Result<Self> {
         // TODO: 音频使用的是UDP并非TCP
-        let listener = TcpListener::bind("0.0.0.0:0").await?;
+        let listener = UdpSocket::bind("0.0.0.0:0").await?;
         let port = listener.local_addr()?.port();
         let task = tokio::task::spawn(async move {
-            log::info!("AudioServer Starting...");
-            loop {
-                let (stream, _) = listener.accept().await.unwrap();
-                tokio::task::spawn(audio_hanlde(
-                    stream,
-                    audio_decryptor.clone(),
-                    consumer.clone(),
-                ));
-            }
+            log::info!("AudioServer Starting... port = {}", port);
+            audio_hanlde(listener, audio_decryptor.clone(), consumer.clone()).await
         });
         Ok(Self { task, port })
     }
@@ -67,10 +62,12 @@ impl ServerInner {
 
 impl Drop for ServerInner {
     fn drop(&mut self) {
+        log::info!("终止 Audio Server...");
         self.task.abort();
     }
 }
 
+#[allow(dead_code)]
 struct AudioPacket {
     flag: u8,
     ty: u8,
@@ -102,7 +99,7 @@ impl AudioDecoder {
         }
     }
 
-    async fn decode(&mut self, reader: &mut BufReader<TcpStream>) -> io::Result<AudioPacket> {
+    async fn decode(&mut self, reader: &mut BufReader<&[u8]>) -> io::Result<AudioPacket> {
         reader.read_exact(&mut self.header_buf).await?;
         let flag = self.header_buf[0];
         let ty = self.header_buf[1];
@@ -132,25 +129,44 @@ impl AudioDecoder {
 }
 
 async fn audio_hanlde(
-    stream: TcpStream,
+    listener: UdpSocket,
     audio_decryptor: FairPlayAudioDecryptor,
     consumer: ArcAirPlayConsumer,
 ) {
-    log::info!("AudioServer 连接进入...");
+    log::info!("AudioServer 启动...");
     let mut decoder = AudioDecoder::new();
-    let mut reader = BufReader::new(stream);
-    let prev_seq_num = 0;
+    let mut prev_seq_num = 0;
+    let mut buf = [0; 4096];
+    let mut packet_buf = HashMap::new();
+    let packet_buf_len = 512;
     loop {
-        log::info!("读取中...");
+        let (read_bytes, _from) = listener.recv_from(&mut buf).await.unwrap();
+        log::info!("读取到音频数据 大小 = {read_bytes}...");
+        let now = Instant::now();
+        let mut reader = BufReader::new(&buf[..read_bytes]);
         let result = decoder.decode(&mut reader).await;
         match result {
-            Ok(mut packet) => {
-                let cur_seq_num = packet.seq_number;
+            Ok(packet) => {
+                let mut cur_seq_num = packet.seq_number;
                 if cur_seq_num < prev_seq_num {
                     continue;
                 }
-                audio_decryptor.decrypt(packet.audio_buf_mut());
-                consumer.on_audio(packet.audio_buf().to_vec());
+                let key = cur_seq_num % packet_buf_len;
+                packet_buf.insert(key, packet);
+                while 'd: {
+                    if cur_seq_num - prev_seq_num == 1 || prev_seq_num == 0 {
+                        if let Some(mut packet) = packet_buf.remove(&key) {
+                            audio_decryptor.decrypt(packet.audio_buf_mut());
+                            consumer.on_audio(packet.audio_buf().to_vec());
+                            prev_seq_num = cur_seq_num;
+                            break 'd true;
+                        }
+                    }
+                    false
+                } {
+                    cur_seq_num += 1;
+                }
+                log::info!("耗时 {:?}", now.elapsed());
             }
             Err(err) => {
                 log::error!("video server read error! {:?}", err);
@@ -158,5 +174,5 @@ async fn audio_hanlde(
             }
         }
     }
-    log::info!("AudioServer 连接断开...");
+    log::info!("AudioServer 结束...");
 }

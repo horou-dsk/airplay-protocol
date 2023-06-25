@@ -2,8 +2,9 @@ use bytes::Bytes;
 use ed25519_dalek::PUBLIC_KEY_LENGTH;
 
 use self::{
-    fairplay::FairPlay, fairplay_video_decryptor::FairPlayVideoDecryptor,
-    media_stream_info::MediaStreamInfo, pairing::Pairing,
+    fairplay::FairPlay, fairplay_audio_decryptor::FairPlayAudioDecryptor,
+    fairplay_video_decryptor::FairPlayVideoDecryptor, media_stream_info::MediaStreamInfo,
+    pairing::Pairing,
 };
 
 // 将字节数组按照小端字节序转换为 u32
@@ -75,6 +76,14 @@ impl AirPlay {
             self.get_fairplay_aes_key(),
             self.pairing.get_shared_secret().to_vec(),
             self.rtsp.get_stream_connection_id(),
+        )
+    }
+
+    pub fn audio_decryptor(&self) -> FairPlayAudioDecryptor {
+        FairPlayAudioDecryptor::new(
+            self.get_fairplay_aes_key(),
+            self.rtsp.get_eiv(),
+            self.pairing.get_shared_secret(),
         )
     }
 

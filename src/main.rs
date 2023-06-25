@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -6,7 +7,7 @@ use airplay2_protocol::airplay::AirPlayConfig;
 use airplay2_protocol::airplay_bonjour::AirPlayBonjour;
 use airplay2_protocol::control_handle::ControlHandle;
 use airplay2_protocol::net::server::Server as MServer;
-use env_logger::Env;
+// use env_logger::Env;
 
 struct VideoConsumer;
 
@@ -40,10 +41,31 @@ impl AirPlayConsumer for VideoConsumer {
 
 #[tokio::main]
 async fn main() -> tokio::io::Result<()> {
-    let mut builder = env_logger::Builder::new();
-    let env = Env::default().filter_or("MY_LOG_LEVEL", "info");
+    let mut builder = env_logger::Builder::from_default_env();
+    // let env = Env::default().filter_or("MY_LOG_LEVEL", "info");
     // builder.parse_filters("libmdns=debug");
-    builder.parse_env(env);
+    // builder.filter_level(env);
+    builder.format(|buf, record| {
+        let mut style = buf.style();
+        style.set_bold(true);
+        match record.level() {
+            log::Level::Error => {style.set_color(env_logger::fmt::Color::Red);},
+            log::Level::Warn => {style.set_color(env_logger::fmt::Color::Yellow);},
+            log::Level::Info => {style.set_color(env_logger::fmt::Color::Green);},
+            _ => ()
+            // log::Level::Debug => todo!(),
+            // log::Level::Trace => todo!(),
+        };
+        writeln!(
+            buf,
+            "[{} {} {}:{}] {}",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+            style.value(record.level()),
+            record.file().unwrap_or("unknown"),
+            record.line().unwrap_or(0),
+            record.args()
+        )
+    });
     builder.init();
 
     let port = 31927;

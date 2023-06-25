@@ -132,7 +132,7 @@ impl Pairing {
             cipher.apply_keystream(&mut encrypted_signature);
 
             let mut result = Vec::with_capacity(self.ecdh_ours.len() + encrypted_signature.len());
-            println!("{} {}", self.ecdh_ours.len(), encrypted_signature.len());
+            // log::info!("{} {}", self.ecdh_ours.len(), encrypted_signature.len());
             result.extend_from_slice(&self.ecdh_ours);
             result.extend_from_slice(&encrypted_signature);
             Some(result.into())

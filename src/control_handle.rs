@@ -143,8 +143,19 @@ impl ControlHandle {
                 }
                 MediaStreamInfo::Audio(audio) => {
                     self.audio_consumer.on_audio_format(audio);
-                    // let mut audio_server = session.
-                    Ok(resp)
+                    let audio_server = &session.audio_server;
+                    audio_server
+                        .start(
+                            session.airplay.read().await.audio_decryptor(),
+                            self.audio_consumer.clone(),
+                        )
+                        .await
+                        .expect("start audio server error!");
+                    let setup = property_list::prepare_setup_audio_response(
+                        audio_server.get_port().await,
+                        self.airplay_config.port,
+                    );
+                    Ok(resp.bytes_body(setup))
                 }
             }
         } else {
@@ -158,26 +169,37 @@ impl ControlHandle {
 
     async fn handle_rtsp_set_parameter(&self, req: Request<'_>) -> ResultResp {
         let mut resp = Response::rtsp_ok(&req);
-        resp.headers_mut().insert(
-            "Audio-Jack-Status",
-            HeaderValue::from_static("connected; type=analog"),
-        );
+        // log::info!("{:?}", req.headers());
+        let body = req.into_body();
+        // 未处理
+        let _data = body.array().await;
+        // log::info!("{:?}", data);
+        resp.headers_mut()
+            .insert("Audio-Jack-Status", "connected; type=analog".to_string());
+        log::info!("{:?}", String::from_utf8_lossy(&resp.clone().into_bytes()));
         Ok(resp)
     }
 
-    async fn hanlde_rtsp_teardown(&self, req: Request<'_>) -> ResultResp {
+    async fn hanlde_rtsp_teardown(&self, mut req: Request<'_>) -> ResultResp {
         let resp = Response::rtsp_ok(&req);
-        if let Some(session) = self.remove_session(&req).await {
-            let data = req.into_body().array().await.expect("body read error");
-            let data = session.airplay.write().await.rstp_setup(&data);
-            if let Some(media_info) = data {
-                match media_info {
-                    MediaStreamInfo::Audio(_) => {}
-                    MediaStreamInfo::Video(_) => {}
+        let session = self.resolve_session(&req).await;
+        let data = req
+            .take_body()
+            .unwrap()
+            .array()
+            .await
+            .expect("body read error");
+        let data = session.airplay.write().await.rstp_setup(&data);
+        if let Some(media_info) = data {
+            match media_info {
+                MediaStreamInfo::Audio(_) => {
+                    session.audio_server.stop().await;
                 }
-            } else {
-                // stop
+                MediaStreamInfo::Video(_) => {}
             }
+        } else {
+            self.remove_session(&req).await;
+            // stop
         }
         Ok(resp)
     }
@@ -199,10 +221,8 @@ impl ServiceRequest for ControlHandle {
                     (Method::Get, "/empty") => Ok(Response::http_ok()),
                     (Method::Get, "/info") => {
                         let mut resp = Response::http_ok().text_body(r#"{"a": 123}"#);
-                        resp.headers_mut().insert(
-                            "Content-Type",
-                            HeaderValue::from_static("application/json;"),
-                        );
+                        resp.headers_mut()
+                            .insert("Content-Type", "application/json;".to_string());
                         Ok(resp)
                     }
                     (Method::Post, "/pair-pin-start") => self.handle_pair_pin_start(req).await,
