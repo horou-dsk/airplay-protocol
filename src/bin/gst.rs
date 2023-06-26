@@ -1,88 +1,126 @@
-use std::io::{BufReader, Write};
 use std::net::SocketAddr;
+use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
 
 use airplay2_protocol::airplay::airplay_consumer::{AirPlayConsumer, ArcAirPlayConsumer};
 use airplay2_protocol::airplay::AirPlayConfig;
 use airplay2_protocol::airplay_bonjour::AirPlayBonjour;
 use airplay2_protocol::control_handle::ControlHandle;
 use airplay2_protocol::net::server::Server as MServer;
-use crossbeam::channel::{Receiver, Sender};
-use rodio::{Decoder, OutputStream, Source};
-
-struct MediaBuffer {
-    rx: Receiver<Vec<u8>>,
-    v: Vec<u8>,
-}
-
-impl std::io::Read for MediaBuffer {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let len = self.v.len();
-        if len > 0 {
-            let len = len.min(buf.len());
-            let result: Vec<u8> = self.v.drain(..len).collect();
-            buf[..len].copy_from_slice(&result);
-            Ok(len)
-        } else {
-            match self.rx.recv() {
-                Ok(mut v) => {
-                    let len = v.len().min(buf.len());
-                    let result: Vec<u8> = v.drain(..len).collect();
-                    buf[..len].copy_from_slice(&result);
-                    if !v.is_empty() {
-                        self.v.extend(v);
-                    }
-                    Ok(len)
-                }
-                Err(err) => Err(std::io::Error::new(std::io::ErrorKind::InvalidData, err)),
-            }
-        }
-    }
-}
-
-impl std::io::Seek for MediaBuffer {
-    fn seek(&mut self, _pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        Ok(0)
-    }
-}
-
-struct MediaPlay {
-    tx: Sender<Vec<u8>>,
-}
-
-impl MediaPlay {
-    pub fn new() -> Self {
-        let (tx, rx) = crossbeam::channel::unbounded();
-        std::thread::spawn(move || {
-            let audio_stream = OutputStream::try_default().unwrap();
-            let audio_buffer = MediaBuffer { rx, v: Vec::new() };
-            let reader = BufReader::new(audio_buffer);
-            // TODO：需要使用 alac 解码
-            let source = Decoder::new_aac(reader).unwrap();
-            audio_stream.1.play_raw(source.convert_samples()).unwrap();
-            std::thread::sleep(Duration::from_secs(999));
-        });
-
-        Self { tx }
-    }
-}
-
-impl MediaPlay {
-    pub fn put_buf(&self, buf: Vec<u8>) {
-        self.tx.send(buf).unwrap();
-    }
-}
+use airplay2_protocol::setup_log;
+use crossbeam::channel::Sender;
+use gst::Caps;
+use gstreamer::{self as gst, prelude::*};
+use gstreamer_app::{AppSrc, AppStreamType};
+// use env_logger::Env;
 
 struct VideoConsumer {
-    media_play: MediaPlay,
+    tx: Sender<Vec<u8>>,
 }
 
 impl VideoConsumer {
     pub fn new() -> Self {
-        Self {
-            media_play: MediaPlay::new(),
-        }
+        let (tx, rx) = crossbeam::channel::unbounded();
+        tokio::task::spawn_blocking(move || {
+            gst::init().unwrap();
+            let caps = Caps::from_str("audio/x-alac,mpegversion=(int)4,channels=(int)2,rate=(int)48000,stream-format=raw,codec_data=(buffer)00000024616c616300000000000001600010280a0e0200ff00000000000000000000ac44").unwrap();
+            let pipeline = gst::Pipeline::default();
+
+            let appsrc = AppSrc::builder()
+                .is_live(true)
+                .stream_type(AppStreamType::Stream)
+                .caps(&caps)
+                .format(gst::Format::Time)
+                .build();
+
+            let avdec_alac = gst::ElementFactory::make("avdec_alac").build().unwrap();
+            let audioconvert = gst::ElementFactory::make("audioconvert").build().unwrap();
+            let audioresample = gst::ElementFactory::make("audioresample").build().unwrap();
+            let autoaudiosink = gst::ElementFactory::make("autoaudiosink")
+                .property("sync", false)
+                .build()
+                .unwrap();
+
+            pipeline
+                .add_many(&[
+                    appsrc.upcast_ref(),
+                    &avdec_alac,
+                    &audioconvert,
+                    &audioresample,
+                    &autoaudiosink,
+                ])
+                .unwrap();
+            gst::Element::link_many(&[
+                appsrc.upcast_ref(),
+                &avdec_alac,
+                &audioconvert,
+                &audioresample,
+                &autoaudiosink,
+            ])
+            .unwrap();
+
+            // let pipeline_weak = pipeline.downgrade();
+            appsrc.set_callbacks(
+                gstreamer_app::AppSrcCallbacks::builder()
+                    .need_data(move |appsrc, _size| {
+                        // let pipeline = match pipeline_weak.upgrade() {
+                        //     Some(pipeline) => pipeline,
+                        //     None => return,
+                        // };
+
+                        if let Ok(buffer) = rx.recv() {
+                            let buffer = gstreamer::Buffer::from_mut_slice(buffer);
+                            let _ = appsrc.push_buffer(buffer);
+                        }
+
+                        // pipeline.set_state(gstreamer::State::Playing).unwrap();
+                    })
+                    .build(),
+            );
+
+            let bus = pipeline.bus().unwrap();
+            pipeline
+                .set_state(gst::State::Playing)
+                .expect("Unable to set the pipeline to the `Playing` state");
+
+            for msg in bus.iter_timed(gst::ClockTime::NONE) {
+                use gst::MessageView;
+
+                match msg.view() {
+                    MessageView::Eos(..) => break,
+                    MessageView::Error(err) => {
+                        println!(
+                            "Error from {:?}: {} ({:?})",
+                            err.src().map(|s| s.path_string()),
+                            err.error(),
+                            err.debug()
+                        );
+                        break;
+                    }
+                    MessageView::StateChanged(state_changed) =>
+                    // We are only interested in state-changed messages from playbin
+                    {
+                        if state_changed.src().map(|s| s == &pipeline).unwrap_or(false)
+                            && state_changed.current() == gst::State::Playing
+                        {
+                            println!("StateChanged....");
+                            // Generate a dot graph of the pipeline to GST_DEBUG_DUMP_DOT_DIR if defined
+                            let pipeline: &gst::Element = pipeline.upcast_ref();
+                            let bin_ref = pipeline.downcast_ref::<gst::Bin>().unwrap();
+                            bin_ref.debug_to_dot_file(gst::DebugGraphDetails::all(), "PLAYING");
+                        }
+                    }
+
+                    _ => (),
+                }
+            }
+
+            pipeline
+                .set_state(gst::State::Null)
+                .expect("Unable to set the pipeline to the `Null` state");
+        });
+
+        Self { tx }
     }
 }
 
@@ -107,50 +145,24 @@ impl AirPlayConsumer for VideoConsumer {
         audio_stream_info: airplay2_protocol::airplay::lib::audio_stream_info::AudioStreamInfo,
     ) {
         log::info!(
-            "on_audio_format...type = {:?}",
+            "on_audio_format... type = {:?}",
             audio_stream_info.compression_type
         );
     }
 
     fn on_audio(&self, bytes: Vec<u8>) {
-        self.media_play.put_buf(bytes);
-        log::info!("on_audio...");
+        self.tx.send(bytes).unwrap();
+        // log::info!("on_audio...");
     }
 }
 
 #[tokio::main]
 async fn main() -> tokio::io::Result<()> {
-    let mut builder = env_logger::Builder::from_default_env();
-    builder.format(|buf, record| {
-        let mut style = buf.style();
-        style.set_bold(true);
-        match record.level() {
-            log::Level::Error => {
-                style.set_color(env_logger::fmt::Color::Red);
-            }
-            log::Level::Warn => {
-                style.set_color(env_logger::fmt::Color::Yellow);
-            }
-            log::Level::Info => {
-                style.set_color(env_logger::fmt::Color::Green);
-            }
-            _ => (),
-        };
-        writeln!(
-            buf,
-            "[{} {} {}:{}] {}",
-            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-            style.value(record.level()),
-            record.file().unwrap_or("unknown"),
-            record.line().unwrap_or(0),
-            record.args()
-        )
-    });
-    builder.init();
-
+    setup_log();
     let port = 31927;
     let name = "RustAirplay";
 
+    // pin码认证功能缺失...
     let _air = AirPlayBonjour::new(name, port, false);
 
     let addr: SocketAddr = ([0, 0, 0, 0], port).into();

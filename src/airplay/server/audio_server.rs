@@ -141,8 +141,8 @@ async fn audio_hanlde(
     let packet_buf_len = 512;
     loop {
         let (read_bytes, _from) = listener.recv_from(&mut buf).await.unwrap();
-        log::info!("读取到音频数据 大小 = {read_bytes}...");
-        let now = Instant::now();
+        // log::info!("读取到音频数据 大小 = {read_bytes}...");
+        // let now = Instant::now();
         let mut reader = BufReader::new(&buf[..read_bytes]);
         let result = decoder.decode(&mut reader).await;
         match result {
@@ -166,7 +166,7 @@ async fn audio_hanlde(
                 } {
                     cur_seq_num += 1;
                 }
-                log::info!("耗时 {:?}", now.elapsed());
+                // log::info!("耗时 {:?}", now.elapsed());
             }
             Err(err) => {
                 log::error!("video server read error! {:?}", err);

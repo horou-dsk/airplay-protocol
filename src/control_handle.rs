@@ -1,5 +1,4 @@
 use futures::FutureExt;
-use hyper::http::HeaderValue;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -176,7 +175,7 @@ impl ControlHandle {
         // log::info!("{:?}", data);
         resp.headers_mut()
             .insert("Audio-Jack-Status", "connected; type=analog".to_string());
-        log::info!("{:?}", String::from_utf8_lossy(&resp.clone().into_bytes()));
+        // log::info!("{:?}", String::from_utf8_lossy(&resp.clone().into_bytes()));
         Ok(resp)
     }
 
