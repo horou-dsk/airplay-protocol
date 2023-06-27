@@ -110,7 +110,7 @@ impl VideoDecoder {
         match self.state {
             DecoderState::ReadHeader => {
                 reader.read_exact(&mut self.header_buf).await?;
-                log::info!("header {:?}", self.header_buf);
+                // log::info!("header {:?}", self.header_buf);
                 let mut head_cur = Cursor::new(&mut self.header_buf);
                 self.payload_size = head_cur.read_u32_le().await? as usize;
                 self.payload_type = head_cur.read_u16_le().await? & 0xFF;
@@ -165,13 +165,20 @@ fn prepare_picture_nal_units(payload: &mut [u8]) {
             idx += nalu_size + 4;
         }
         if payload.len() - nalu_size > 4 {
-            log::error!("Video packet contains corrupted NAL unit. It might be decrypt error");
+            // log::error!("{:?}", payload);
+            log::error!(
+                "Video packet contains corrupted NAL unit. It might be decrypt error idx = {idx}"
+            );
             break;
         }
     }
 }
 
-fn prepare_sps_pps_nal_units(payload: &[u8]) -> Vec<u8> {
+fn prepare_sps_pps_nal_units(payload: &[u8]) -> Option<Vec<u8>> {
+    if payload.len() < 10 {
+        log::error!("video len error");
+        return None;
+    }
     let sps_size = u16::from_be_bytes(payload[6..8].try_into().unwrap()) as usize;
     let seq_par_set = &payload[9..9 + sps_size];
 
@@ -189,7 +196,7 @@ fn prepare_sps_pps_nal_units(payload: &[u8]) -> Vec<u8> {
     sps_pps.extend_from_slice(&[0, 0, 0, 1]);
     sps_pps.extend_from_slice(pps);
 
-    sps_pps
+    Some(sps_pps)
 }
 
 async fn video_hanlde(
@@ -201,15 +208,16 @@ async fn video_hanlde(
     let mut decoder = VideoDecoder::new();
     let mut reader = BufReader::new(stream);
     loop {
-        log::info!("读取中...");
+        // log::info!("读取中...");
         let result = decoder.decode(&mut reader).await;
         match result {
             Ok(packet) => {
                 if let Some(mut video_packet) = packet {
                     // log::info!(
-                    //     "payload_type = {}, payload_size = {}",
+                    //     "payload_type = {}, payload_size = {}, payload_len = {}",
                     //     video_packet.payload_type,
-                    //     video_packet.payload_size
+                    //     video_packet.payload_size,
+                    //     video_packet.payload.len()
                     // );
                     match video_packet.payload_type {
                         0 => {
@@ -218,7 +226,9 @@ async fn video_hanlde(
                             consumer.on_video(video_packet.payload.to_vec());
                         }
                         1 => {
-                            consumer.on_video(prepare_sps_pps_nal_units(&video_packet.payload));
+                            if let Some(buffer) = prepare_sps_pps_nal_units(&video_packet.payload) {
+                                consumer.on_video(buffer);
+                            }
                         }
                         _ => (),
                     }

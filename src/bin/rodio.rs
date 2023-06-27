@@ -116,6 +116,8 @@ impl AirPlayConsumer for VideoConsumer {
         self.media_play.put_buf(bytes);
         log::info!("on_audio...");
     }
+
+    fn on_audio_src_disconnect(&self) {}
 }
 
 #[tokio::main]

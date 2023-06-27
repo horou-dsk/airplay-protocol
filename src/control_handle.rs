@@ -192,9 +192,13 @@ impl ControlHandle {
         if let Some(media_info) = data {
             match media_info {
                 MediaStreamInfo::Audio(_) => {
+                    self.audio_consumer.on_audio_src_disconnect();
                     session.audio_server.stop().await;
                 }
-                MediaStreamInfo::Video(_) => {}
+                MediaStreamInfo::Video(_) => {
+                    self.video_consumer.on_video_src_disconnect();
+                    session.video_server.write().await.stop();
+                }
             }
         } else {
             self.remove_session(&req).await;

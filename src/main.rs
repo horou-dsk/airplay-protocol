@@ -37,6 +37,10 @@ impl AirPlayConsumer for VideoConsumer {
     fn on_audio(&self, bytes: Vec<u8>) {
         log::info!("on_audio...");
     }
+
+    fn on_audio_src_disconnect(&self) {
+        log::info!("on audio disconnect");
+    }
 }
 
 #[tokio::main]

@@ -68,6 +68,7 @@ impl Rtsp {
                 if stream.contains_key("streamConnectionID") {
                     self.stream_connection_id = stream["streamConnectionID"]
                         .as_signed_integer()
+                        .map(|n| n as u64)
                         .unwrap()
                         .to_string();
                 }
