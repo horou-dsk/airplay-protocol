@@ -2,7 +2,7 @@
 
 use std::io::Cursor;
 
-use tokio::io::{AsyncReadExt, BufReader};
+use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
 use tokio::{io, net::TcpListener};
@@ -103,50 +103,54 @@ impl VideoDecoder {
         }
     }
 
-    async fn decode(
+    async fn decode<T: AsyncRead + Unpin>(
         &mut self,
-        reader: &mut BufReader<TcpStream>,
+        reader: &mut BufReader<T>,
     ) -> io::Result<Option<VideoPacket>> {
-        match self.state {
-            DecoderState::ReadHeader => {
-                reader.read_exact(&mut self.header_buf).await?;
-                // log::info!("header {:?}", self.header_buf);
-                let mut head_cur = Cursor::new(&mut self.header_buf);
-                self.payload_size = head_cur.read_u32_le().await? as usize;
-                self.payload_type = head_cur.read_u16_le().await? & 0xFF;
-                self.state = DecoderState::ReadPayload;
-            }
-            DecoderState::ReadPayload => {
-                if self.payload_type == 0 || self.payload_type == 1 {
-                    let mut payload_buf = Vec::with_capacity(self.payload_size);
-                    unsafe { payload_buf.set_len(self.payload_size) };
-                    reader.read_exact(&mut payload_buf).await?;
-                    self.state = DecoderState::ReadHeader;
-                    return Ok(Some(VideoPacket {
-                        payload_type: self.payload_type,
-                        payload_size: self.payload_size,
-                        payload: payload_buf,
-                    }));
-                } else {
-                    log::info!(
-                        "Video packet with type: {}, length: {} bytes is skipped",
-                        self.payload_type,
-                        self.payload_size
-                    );
-                    let mut already_size = 0;
-                    loop {
-                        let len = (self.payload_size - already_size).min(self.payload_buf.len());
-                        if len == 0 {
-                            break;
+        loop {
+            match self.state {
+                DecoderState::ReadHeader => {
+                    reader.read_exact(&mut self.header_buf).await?;
+                    // log::info!("header {:?}", self.header_buf);
+                    let mut head_cur = Cursor::new(&mut self.header_buf);
+                    self.payload_size = head_cur.read_u32_le().await? as usize;
+                    self.payload_type = head_cur.read_u16_le().await? & 0xFF;
+                    self.state = DecoderState::ReadPayload;
+                }
+                DecoderState::ReadPayload => {
+                    if self.payload_type == 0 || self.payload_type == 1 {
+                        let mut payload_buf = Vec::with_capacity(self.payload_size);
+                        unsafe { payload_buf.set_len(self.payload_size) };
+                        reader.read_exact(&mut payload_buf).await?;
+                        self.state = DecoderState::ReadHeader;
+                        return Ok(Some(VideoPacket {
+                            payload_type: self.payload_type,
+                            payload_size: self.payload_size,
+                            payload: payload_buf,
+                        }));
+                    } else {
+                        log::info!(
+                            "Video packet with type: {}, length: {} bytes is skipped",
+                            self.payload_type,
+                            self.payload_size
+                        );
+                        let mut already_size = 0;
+                        loop {
+                            let len =
+                                (self.payload_size - already_size).min(self.payload_buf.len());
+                            if len == 0 {
+                                break;
+                            }
+                            reader.read_exact(&mut self.payload_buf[..len]).await?;
+                            already_size += len;
                         }
-                        reader.read_exact(&mut self.payload_buf[..len]).await?;
-                        already_size += len;
+                        self.state = DecoderState::ReadHeader;
+                        return Ok(None);
                     }
-                    self.state = DecoderState::ReadHeader;
                 }
             }
         }
-        Ok(None)
+        // Ok(None)
     }
 }
 
@@ -180,12 +184,12 @@ fn prepare_sps_pps_nal_units(payload: &[u8]) -> Option<Vec<u8>> {
         return None;
     }
     let sps_size = u16::from_be_bytes(payload[6..8].try_into().unwrap()) as usize;
-    let seq_par_set = &payload[9..9 + sps_size];
+    let seq_par_set = &payload[8..8 + sps_size];
 
     let payload = &payload[9 + sps_size..];
 
     let pps_size = u16::from_be_bytes(payload[..2].try_into().unwrap()) as usize;
-    let pps = &payload[3..3 + pps_size];
+    let pps = &payload[2..2 + pps_size];
 
     let sps_pps_size = sps_size + pps_size + 8;
     log::info!("SPS PPS length: {}", sps_pps_size);
@@ -241,4 +245,50 @@ async fn video_hanlde(
         }
     }
     log::info!("VideoServer 连接断开...");
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::io::BufReader;
+    use tp_macro::jb_to_rb;
+
+    use crate::airplay::server::video_server::prepare_sps_pps_nal_units;
+
+    use super::VideoDecoder;
+
+    #[tokio::test]
+    async fn test_decode_video_packet_type0_success() {
+        let mut decoder = VideoDecoder::new();
+        let b = include_bytes!("./resources/video_packet_type_0");
+        let mut reader = BufReader::new(&b[..]);
+        let packet = decoder.decode(&mut reader).await.unwrap().unwrap();
+        assert_eq!(0, packet.payload_type);
+        assert_eq!(3593, packet.payload_size);
+    }
+
+    #[tokio::test]
+    async fn test_decode_video_packet_type1_success() {
+        let mut decoder = VideoDecoder::new();
+        let b = include_bytes!("./resources/video_packet_type_1");
+        let mut reader = BufReader::new(&b[..]);
+        let packet = decoder.decode(&mut reader).await.unwrap().unwrap();
+        assert_eq!(1, packet.payload_type);
+        assert_eq!(36, packet.payload_size);
+        assert_eq!(
+            jb_to_rb!([
+                0, 0, 0, 1, 39, 100, 0, 31, -84, 19, 20, 80, 84, 22, -6, -26, -32, 32, 32, 32, 64,
+                0, 0, 0, 1, 40, -18, 60, -80
+            ]),
+            &prepare_sps_pps_nal_units(&packet.payload).unwrap()[..]
+        )
+    }
+
+    #[tokio::test]
+    async fn test_decode_video_packet_type5_skipped() {
+        let mut decoder = VideoDecoder::new();
+        let b = include_bytes!("./resources/video_packet_type_5");
+        let mut reader = BufReader::new(&b[..]);
+        let packet = decoder.decode(&mut reader).await.unwrap();
+        assert!(packet.is_none());
+    }
 }

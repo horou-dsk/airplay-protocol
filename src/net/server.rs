@@ -73,10 +73,10 @@ fn parse_header(header_str: &str) -> HeaderMap {
 
 async fn decoder(mut stream: TcpStream, handle: Arc<Box<dyn ServiceRequest>>) -> io::Result<()> {
     log::info!("连接进入....");
-    let mut index = 0;
+    // let mut index = 0;
     loop {
-        index += 1;
-        log::info!("index ========== {index}");
+        // index += 1;
+        // log::info!("index ========== {index}");
 
         let mut reader = BufReader::new(&mut stream);
         let mut initial_line = String::new();

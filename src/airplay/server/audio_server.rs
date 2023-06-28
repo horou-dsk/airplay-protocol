@@ -1,11 +1,4 @@
-use std::collections::HashMap;
-
-use tokio::{
-    io::{self, AsyncBufReadExt, AsyncReadExt, BufReader},
-    net::UdpSocket,
-    sync::Mutex,
-    task::JoinHandle,
-};
+use tokio::{io, net::UdpSocket, sync::Mutex, task::JoinHandle};
 
 use crate::airplay::{
     airplay_consumer::ArcAirPlayConsumer, lib::fairplay_audio_decryptor::FairPlayAudioDecryptor,
@@ -68,6 +61,7 @@ impl Drop for ServerInner {
 }
 
 #[allow(dead_code)]
+#[derive(Clone)]
 struct AudioPacket {
     flag: u8,
     ty: u8,
@@ -88,32 +82,28 @@ impl AudioPacket {
     }
 }
 
-struct AudioDecoder {
-    header_buf: [u8; 12],
-}
+struct AudioDecoder;
 
 impl AudioDecoder {
-    fn new() -> Self {
-        Self {
-            header_buf: [0; 12],
-        }
-    }
+    // fn new() -> Self {
+    //     Self {
+    //         header_buf: [0; 12],
+    //     }
+    // }
 
-    async fn decode(&mut self, reader: &mut BufReader<&[u8]>) -> io::Result<AudioPacket> {
-        reader.read_exact(&mut self.header_buf).await?;
-        let flag = self.header_buf[0];
-        let ty = self.header_buf[1];
-        let seq_number = u16::from_be_bytes(self.header_buf[2..4].try_into().unwrap());
+    async fn decode(reader: &[u8]) -> io::Result<AudioPacket> {
+        let header_buf = &reader[..12];
+        let body_buf = &reader[12..];
+        let flag = header_buf[0];
+        let ty = header_buf[1];
 
-        let timestamp = u32::from_be_bytes(self.header_buf[4..8].try_into().unwrap()); //(headerBytes[7] & 0xFF) | ((headerBytes[6] & 0xFF) << 8) |
-                                                                                       // ((headerBytes[5] & 0xFF) << 16) | ((headerBytes[4] & 0xFF) << 24);
-        let ssrc = u32::from_be_bytes(self.header_buf[8..].try_into().unwrap());
-        // long ssrc = (headerBytes[11] & 0xFF) | ((headerBytes[6] & 0xFF) << 8) |
-        // ((headerBytes[9] & 0xFF) << 16) | ((headerBytes[8] & 0xFF) << 24);
-        let buf_size = reader.fill_buf().await?.len();
+        let seq_number = u16::from_be_bytes(header_buf[2..4].try_into().unwrap());
+
+        let timestamp = u32::from_be_bytes(header_buf[4..8].try_into().unwrap());
+
+        let ssrc = u32::from_be_bytes(header_buf[8..].try_into().unwrap());
         let mut audio_buf = [0; 480 * 4];
-        let audio_size = buf_size.min(audio_buf.len());
-        reader.read_exact(&mut audio_buf[..audio_size]).await?;
+        audio_buf[..body_buf.len()].copy_from_slice(body_buf);
 
         let audio_packet = AudioPacket {
             flag,
@@ -122,7 +112,7 @@ impl AudioDecoder {
             timestamp,
             ssrc,
             audio_buf,
-            audio_size,
+            audio_size: body_buf.len(),
         };
         Ok(audio_packet)
     }
@@ -133,35 +123,47 @@ async fn audio_hanlde(
     audio_decryptor: FairPlayAudioDecryptor,
     consumer: ArcAirPlayConsumer,
 ) {
-    log::info!("AudioServer 启动...");
-    let mut decoder = AudioDecoder::new();
+    log::warn!("AudioServer 启动...");
     let mut prev_seq_num = 0;
     let mut buf = [0; 4096];
-    let mut packet_buf = HashMap::new();
-    let packet_buf_len = 512;
+    let packet_buf_len = 256;
+    let mut packet_buf = vec![None; packet_buf_len];
+    let mut packets_buf = 0;
     loop {
-        let (read_bytes, _from) = listener.recv_from(&mut buf).await.unwrap();
+        let read_bytes = listener.recv(&mut buf).await.unwrap();
         // log::info!("读取到音频数据 大小 = {read_bytes}...");
         // let now = Instant::now();
-        let mut reader = BufReader::new(&buf[..read_bytes]);
-        let result = decoder.decode(&mut reader).await;
+        let result = AudioDecoder::decode(&buf[..read_bytes]).await;
         match result {
             Ok(packet) => {
-                let mut cur_seq_num = packet.seq_number;
+                let mut cur_seq_num = packet.seq_number as usize;
+                println!(
+                    "cur_seq_num = {}, prev_seq_num = {}",
+                    cur_seq_num, prev_seq_num
+                );
+                if cur_seq_num == 0 {
+                    prev_seq_num = 0;
+                }
                 if cur_seq_num < prev_seq_num {
                     continue;
                 }
+                if packets_buf >= 3 {
+                    prev_seq_num = cur_seq_num - 1;
+                }
                 let key = cur_seq_num % packet_buf_len;
-                packet_buf.insert(key, packet);
+                packet_buf[key] = Some(packet);
                 while 'd: {
                     if cur_seq_num - prev_seq_num == 1 || prev_seq_num == 0 {
-                        if let Some(mut packet) = packet_buf.remove(&key) {
+                        let packet = packet_buf[cur_seq_num % packet_buf_len].take();
+                        if let Some(mut packet) = packet {
                             audio_decryptor.decrypt(packet.audio_buf_mut());
                             consumer.on_audio(packet.audio_buf().to_vec());
                             prev_seq_num = cur_seq_num;
+                            packets_buf = 0;
                             break 'd true;
                         }
                     }
+                    packets_buf += 1;
                     false
                 } {
                     cur_seq_num += 1;
@@ -169,10 +171,10 @@ async fn audio_hanlde(
                 // log::info!("耗时 {:?}", now.elapsed());
             }
             Err(err) => {
-                log::error!("video server read error! {:?}", err);
+                log::error!("audio server read error! {:?}", err);
                 break;
             }
         }
     }
-    log::info!("AudioServer 结束...");
+    log::warn!("AudioServer 结束...");
 }
