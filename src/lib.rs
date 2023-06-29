@@ -24,7 +24,7 @@ pub fn setup_log() {
             "[{} {} {}:{}] {}",
             chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
             style.value(record.level()),
-            record.file().unwrap_or("unknown"),
+            record.module_path().unwrap_or("unknown"),
             record.line().unwrap_or(0),
             record.args()
         )

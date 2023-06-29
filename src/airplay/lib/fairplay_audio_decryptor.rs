@@ -5,8 +5,7 @@ type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
 #[derive(Clone)]
 pub struct FairPlayAudioDecryptor {
-    e_aes_key: [u8; 16],
-    aes_iv: Vec<u8>,
+    aes_cbc_decrypt: Aes128CbcDec,
 }
 
 impl FairPlayAudioDecryptor {
@@ -19,18 +18,14 @@ impl FairPlayAudioDecryptor {
         log::info!("e_aes_key = {:?}", e_aes_key);
         log::info!("aes_iv = {:?}", aes_iv);
 
+        let iv = GenericArray::from_slice(aes_iv);
         Self {
-            e_aes_key,
-            aes_iv: aes_iv.to_vec(),
+            aes_cbc_decrypt: Aes128CbcDec::new(&e_aes_key.into(), iv),
         }
     }
 
     pub fn decrypt(&self, audio: &mut [u8]) {
-        // log::info!("e_aes_key: {:?}", self.e_aes_key);
-        // log::info!("iv: {:?}", self.aes_iv);
-        // log::info!("audio_data: {:?}", audio);
-        let iv = GenericArray::from_slice(&self.aes_iv);
-        let mut aes_cbc_decrypt = Aes128CbcDec::new(&self.e_aes_key.into(), iv);
+        let mut aes_cbc_decrypt = self.aes_cbc_decrypt.clone(); //Aes128CbcDec::new(&self.e_aes_key.into(), iv);
         for i in 0..(audio.len() / 16) {
             let block_audio = &mut audio[i * 16..(i + 1) * 16];
             aes_cbc_decrypt.decrypt_block_mut(block_audio.into());

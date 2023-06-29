@@ -1,6 +1,6 @@
 #![allow(clippy::uninit_vec)]
 
-use std::io::Cursor;
+// use std::io::Cursor;
 
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 use tokio::net::TcpStream;
@@ -112,9 +112,13 @@ impl VideoDecoder {
                 DecoderState::ReadHeader => {
                     reader.read_exact(&mut self.header_buf).await?;
                     // log::info!("header {:?}", self.header_buf);
-                    let mut head_cur = Cursor::new(&mut self.header_buf);
-                    self.payload_size = head_cur.read_u32_le().await? as usize;
-                    self.payload_type = head_cur.read_u16_le().await? & 0xFF;
+                    // let mut head_cur = Cursor::new(&mut self.header_buf);
+                    // self.payload_size = head_cur.read_u32_le().await? as usize;
+                    // self.payload_type = head_cur.read_u16_le().await? & 0xFF;
+                    self.payload_size =
+                        u32::from_le_bytes(self.header_buf[..4].try_into().unwrap()) as usize;
+                    self.payload_type =
+                        u16::from_le_bytes(self.header_buf[4..6].try_into().unwrap()) & 0xFF;
                     self.state = DecoderState::ReadPayload;
                 }
                 DecoderState::ReadPayload => {

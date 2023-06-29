@@ -91,11 +91,11 @@ impl AudioDecoder {
     //     }
     // }
 
-    async fn decode(reader: &[u8]) -> io::Result<AudioPacket> {
+    async fn decode(reader: &[u8]) -> io::Result<Option<AudioPacket>> {
         let header_buf = &reader[..12];
         let body_buf = &reader[12..];
         let flag = header_buf[0];
-        let ty = header_buf[1];
+        let ty = header_buf[1] & 0x7F;
 
         let seq_number = u16::from_be_bytes(header_buf[2..4].try_into().unwrap());
 
@@ -104,6 +104,15 @@ impl AudioDecoder {
         let ssrc = u32::from_be_bytes(header_buf[8..].try_into().unwrap());
         let mut audio_buf = [0; 480 * 4];
         audio_buf[..body_buf.len()].copy_from_slice(body_buf);
+
+        if reader.len() == 16
+            && reader[12] == 0x0
+            && reader[13] == 0x68
+            && reader[14] == 0x34
+            && reader[15] == 0
+        {
+            return Ok(None);
+        }
 
         let audio_packet = AudioPacket {
             flag,
@@ -114,7 +123,89 @@ impl AudioDecoder {
             audio_buf,
             audio_size: body_buf.len(),
         };
-        Ok(audio_packet)
+        Ok(Some(audio_packet))
+    }
+}
+
+const AUDIO_BUFFER_LEN: u16 = 32;
+
+fn seqnum_cmp(s1: u16, s2: u16) -> i16 {
+    (s1 - s2) as i16
+}
+
+struct AudioBuffer {
+    first_seqnum: u16,
+    last_seqnum: u16,
+    is_empty: bool,
+    entries: [Option<AudioPacket>; AUDIO_BUFFER_LEN as usize],
+}
+
+impl Default for AudioBuffer {
+    fn default() -> Self {
+        Self {
+            is_empty: true,
+            last_seqnum: 0,
+            first_seqnum: 0,
+            entries: Default::default(),
+        }
+    }
+}
+
+impl AudioBuffer {
+    fn buffer_flush(&mut self, next_seq: u16) {
+        self.entries.iter_mut().for_each(|entry| *entry = None);
+        if !(0..=0xFFFF).contains(&next_seq) {
+            self.is_empty = true;
+        } else {
+            self.first_seqnum = next_seq;
+            self.last_seqnum = next_seq - 1;
+        }
+    }
+
+    fn buffer_enqueue(&mut self, packet: AudioPacket) {
+        let seq_number = packet.seq_number;
+
+        // If this packet is too late, just skip it
+        if !self.is_empty && seqnum_cmp(seq_number, self.first_seqnum) < 0 {
+            return;
+        }
+
+        if seqnum_cmp(seq_number, self.first_seqnum + AUDIO_BUFFER_LEN) >= 0 {
+            self.buffer_flush(seq_number);
+        }
+
+        let entry = &mut self.entries[(seq_number % AUDIO_BUFFER_LEN) as usize];
+        if let Some(entry) = entry {
+            if seqnum_cmp(entry.seq_number, seq_number) == 0 {
+                return;
+            }
+        }
+
+        *entry = Some(packet);
+
+        if self.is_empty {
+            self.first_seqnum = seq_number;
+            self.last_seqnum = seq_number;
+            self.is_empty = false;
+        }
+        if seqnum_cmp(seq_number, self.last_seqnum) > 0 {
+            self.last_seqnum = seq_number;
+        }
+    }
+
+    fn buffer_dequeue(&mut self) -> Option<AudioPacket> {
+        let entry_count: i16 = (self.last_seqnum - self.first_seqnum) as i16 + 1;
+        if self.is_empty || entry_count <= 0 {
+            return None;
+        }
+
+        let entry = self.entries[(self.first_seqnum % AUDIO_BUFFER_LEN) as usize].take();
+        if entry.is_none() && entry_count < AUDIO_BUFFER_LEN as i16 {
+            return None;
+        }
+        self.first_seqnum += 1;
+        entry.as_ref()?;
+        entry
     }
 }
 
@@ -124,52 +215,29 @@ async fn audio_hanlde(
     consumer: ArcAirPlayConsumer,
 ) {
     log::warn!("AudioServer 启动...");
-    let mut prev_seq_num = 0;
     let mut buf = [0; 4096];
-    let packet_buf_len = 256;
-    let mut packet_buf = vec![None; packet_buf_len];
-    let mut packets_buf = 0;
+    let mut audio_buffer = AudioBuffer::default();
     loop {
         let read_bytes = listener.recv(&mut buf).await.unwrap();
         // log::info!("读取到音频数据 大小 = {read_bytes}...");
         // let now = Instant::now();
         let result = AudioDecoder::decode(&buf[..read_bytes]).await;
         match result {
-            Ok(packet) => {
-                let mut cur_seq_num = packet.seq_number as usize;
-                println!(
-                    "cur_seq_num = {}, prev_seq_num = {}",
-                    cur_seq_num, prev_seq_num
+            Ok(Some(packet)) => {
+                log::debug!(
+                    "cur_seq_num = {}, first_seq_num = {}, last_seq_num = {}",
+                    packet.seq_number,
+                    audio_buffer.first_seqnum,
+                    audio_buffer.last_seqnum
                 );
-                if cur_seq_num == 0 {
-                    prev_seq_num = 0;
-                }
-                if cur_seq_num < prev_seq_num {
-                    continue;
-                }
-                if packets_buf >= 3 {
-                    prev_seq_num = cur_seq_num - 1;
-                }
-                let key = cur_seq_num % packet_buf_len;
-                packet_buf[key] = Some(packet);
-                while 'd: {
-                    if cur_seq_num - prev_seq_num == 1 || prev_seq_num == 0 {
-                        let packet = packet_buf[cur_seq_num % packet_buf_len].take();
-                        if let Some(mut packet) = packet {
-                            audio_decryptor.decrypt(packet.audio_buf_mut());
-                            consumer.on_audio(packet.audio_buf().to_vec());
-                            prev_seq_num = cur_seq_num;
-                            packets_buf = 0;
-                            break 'd true;
-                        }
-                    }
-                    packets_buf += 1;
-                    false
-                } {
-                    cur_seq_num += 1;
+                audio_buffer.buffer_enqueue(packet);
+                while let Some(mut packet) = audio_buffer.buffer_dequeue() {
+                    audio_decryptor.decrypt(packet.audio_buf_mut());
+                    consumer.on_audio(packet.audio_buf().to_vec());
                 }
                 // log::info!("耗时 {:?}", now.elapsed());
             }
+            Ok(None) => (),
             Err(err) => {
                 log::error!("audio server read error! {:?}", err);
                 break;

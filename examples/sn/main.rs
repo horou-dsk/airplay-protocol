@@ -31,6 +31,7 @@ fn main() -> std::io::Result<()> {
         let child_stdin = child.stdin.as_mut().unwrap();
         child_stdin.write_all(b"su\n")?;
         child_stdin.write_all(b"pidof hugep\n")?;
+        // child_stdin.write_all(b"/data/local/tmp/hugep_start.sh\n")?;
         // Close stdin to finish and avoid indefinite blocking
 
         let output = child.wait_with_output()?;

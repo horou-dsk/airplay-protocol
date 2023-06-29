@@ -27,7 +27,7 @@ impl AirPlayBonjour {
             ("pw", pw.to_string()), // 是否需要密码认证
             (
                 "pk",
-                "f3769a660475d27b4f6040381d784645e13e21c53e6d2da6a8c3d757086fc336".to_string(),
+                "b07727d6f6cd6e08b58ede525ec3cdeaa252ad9f683feb212ef8a205246554e7".to_string(),
             ),
             ("rmodel", "PC1.0".to_string()),
             ("rrv", "1.01".to_string()),
@@ -64,7 +64,7 @@ impl AirPlayBonjour {
             ("vn", "65537"),
             (
                 "pk",
-                "f3769a660475d27b4f6040381d784645e13e21c53e6d2da6a8c3d757086fc336",
+                "b07727d6f6cd6e08b58ede525ec3cdeaa252ad9f683feb212ef8a205246554e7",
             ),
         ];
         let props: Vec<String> = props.iter().map(|v| format!("{}={}", v.0, v.1)).collect();

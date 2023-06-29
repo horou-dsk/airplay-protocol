@@ -12,13 +12,13 @@ use airplay2_protocol::setup_log;
 struct VideoConsumer;
 
 impl AirPlayConsumer for VideoConsumer {
-    fn on_video(&self, bytes: Vec<u8>) {
+    fn on_video(&self, _bytes: Vec<u8>) {
         log::info!("on_video...");
     }
 
     fn on_video_format(
         &self,
-        video_stream_info: airplay2_protocol::airplay::lib::video_stream_info::VideoStreamInfo,
+        _video_stream_info: airplay2_protocol::airplay::lib::video_stream_info::VideoStreamInfo,
     ) {
         log::info!("on_video format...");
     }
@@ -29,12 +29,12 @@ impl AirPlayConsumer for VideoConsumer {
 
     fn on_audio_format(
         &self,
-        audio_stream_info: airplay2_protocol::airplay::lib::audio_stream_info::AudioStreamInfo,
+        _audio_stream_info: airplay2_protocol::airplay::lib::audio_stream_info::AudioStreamInfo,
     ) {
         log::info!("on_audio_format...");
     }
 
-    fn on_audio(&self, bytes: Vec<u8>) {
+    fn on_audio(&self, _bytes: Vec<u8>) {
         log::info!("on_audio...");
     }
 
