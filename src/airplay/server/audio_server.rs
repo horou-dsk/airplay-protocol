@@ -43,7 +43,7 @@ impl ServerInner {
         let port = listener.local_addr()?.port();
         let task = tokio::task::spawn(async move {
             log::info!("AudioServer Starting... port = {}", port);
-            audio_hanlde(listener, audio_decryptor.clone(), consumer.clone()).await
+            audio_hanlde(listener, audio_decryptor, consumer).await
         });
         Ok(Self { task, port })
     }

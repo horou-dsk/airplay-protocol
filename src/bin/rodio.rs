@@ -118,6 +118,8 @@ impl AirPlayConsumer for VideoConsumer {
     }
 
     fn on_audio_src_disconnect(&self) {}
+
+    fn on_volume(&self, _volume: f32) {}
 }
 
 #[tokio::main]

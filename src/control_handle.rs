@@ -1,4 +1,5 @@
 use futures::FutureExt;
+use hyper::http::HeaderValue;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -166,12 +167,32 @@ impl ControlHandle {
         Ok(Response::rtsp_ok(&req).slice_body(b"volume: 0.000000\r\n"))
     }
 
-    async fn handle_rtsp_set_parameter(&self, req: Request<'_>) -> ResultResp {
+    async fn handle_rtsp_set_parameter(&self, mut req: Request<'_>) -> ResultResp {
         let mut resp = Response::rtsp_ok(&req);
-        // log::info!("{:?}", req.headers());
-        let body = req.into_body();
+        let body = req.take_body().unwrap();
+        let content_type = req.headers().get("Content-Type");
+        log::info!("{:?}", content_type);
         // 未处理
-        let _data = body.array().await;
+        let data = body.array().await;
+        match (content_type, data) {
+            (Some(header_value), Ok(data))
+                if header_value == HeaderValue::from_static("text/parameters") =>
+            {
+                if data.len() >= 8 && b"volume: " == &data[..8] {
+                    let volume = String::from_utf8_lossy(&data[8..data.len() - 2])
+                        .parse::<f32>()
+                        .unwrap_or(-20.0);
+                    log::info!("volume = {}", volume);
+                    self.audio_consumer.on_volume(volume);
+                }
+            }
+            _ => (),
+        }
+        // if content_type == Some(&HeaderValue::from_static("text/parameters")) {
+        //     if let Ok(data) = data {
+
+        //     }
+        // }
         // log::info!("{:?}", data);
         resp.headers_mut()
             .insert("Audio-Jack-Status", "connected; type=analog".to_string());
