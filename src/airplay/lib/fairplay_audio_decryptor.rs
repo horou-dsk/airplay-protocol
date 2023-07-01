@@ -10,13 +10,16 @@ pub struct FairPlayAudioDecryptor {
 
 impl FairPlayAudioDecryptor {
     pub fn new(aes_key: [u8; 16], aes_iv: &[u8], shared_secret: &[u8]) -> Self {
+        log::info!(
+            "\naes_key = {:?}\naes_iv = {:?}\nshared_secret = {:?}",
+            aes_key,
+            aes_iv,
+            shared_secret
+        );
         let mut hasher = Sha512::new();
         hasher.update(aes_key);
         hasher.update(shared_secret);
         let e_aes_key: [u8; 16] = hasher.finalize()[..16].try_into().unwrap();
-
-        log::info!("e_aes_key = {:?}", e_aes_key);
-        log::info!("aes_iv = {:?}", aes_iv);
 
         let iv = GenericArray::from_slice(aes_iv);
         Self {

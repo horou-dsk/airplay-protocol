@@ -15,7 +15,7 @@ impl AirPlayBonjour {
         let interface = default_net::get_default_interface().unwrap();
         let ip = IpAddr::V4(interface.ipv4[0].addr);
         let responder = libmdns::Responder::new_with_ip_list(vec![ip]).unwrap();
-        let mac = interface.mac_addr.unwrap().to_string(); //"DC:21:48:FE:13:2A";
+        let mac = interface.mac_addr.unwrap().to_string();
         let props = vec![
             ("deviceid", mac.to_string()),
             ("features", "0x5A7FFFF7,0x1E".to_string()),

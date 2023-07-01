@@ -24,7 +24,7 @@ pub mod audio_stream_info;
 mod fairplay;
 pub mod fairplay_audio_decryptor;
 pub mod fairplay_video_decryptor;
-pub mod hand_garble;
+mod hand_garble;
 pub mod media_stream_info;
 mod modified_md5;
 mod omg_hax;
@@ -86,18 +86,6 @@ impl AirPlay {
             self.pairing.get_shared_secret(),
         )
     }
-
-    // pub fn decrypt_video(&mut self, video: &mut [u8]) {
-    //     if let Some(fairplay_video_decryptor) = self.fairplay_video_decryptor.as_mut() {
-    //         fairplay_video_decryptor.decrypt(video);
-    //     } else {
-    //         self.fairplay_video_decryptor = Some(FairPlayVideoDecryptor::new(
-    //             self.get_fairplay_aes_key(),
-    //             self.pairing.get_shared_secret().to_vec(),
-    //             self.rtsp.get_stream_connection_id(),
-    //         ))
-    //     }
-    // }
 }
 
 #[cfg(test)]
@@ -166,7 +154,7 @@ mod tests {
             plist::Value::Data("91IdM6RTh4keicMei2GfQA==".as_bytes().to_vec()),
         );
         let mut setup3_buf = Vec::new();
-        plist::to_writer_binary(&mut setup3_buf, &setup3);
+        plist::to_writer_binary(&mut setup3_buf, &setup3).unwrap();
         airplay.rstp_setup(&setup3_buf);
 
         let stream_connection_id = -3907568444900622110i64;
@@ -185,7 +173,7 @@ mod tests {
 
         let mut rtsp_setup2_buf = Vec::new();
 
-        plist::to_writer_binary(&mut rtsp_setup2_buf, &rtsp_setup2);
+        plist::to_writer_binary(&mut rtsp_setup2_buf, &rtsp_setup2).unwrap();
 
         airplay.rstp_setup(&rtsp_setup2_buf);
 
