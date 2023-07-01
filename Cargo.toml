@@ -42,14 +42,6 @@ tp_macro = {path = "tp_macro"}
 [dependencies.log]
 version = "0.4"
 
-[dependencies.crossbeam]
-version = "0.8"
-
-[target.'cfg(windows)'.dependencies]
-gstreamer = "0.20"
-gstreamer-app = "0.20"
-rodio = {version = "0.17", features = ["symphonia-aac"]}
-
 [dev-dependencies]
 criterion = {version = "0.4", features = ["html_reports"]}
 

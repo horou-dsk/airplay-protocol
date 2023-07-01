@@ -38,7 +38,6 @@ impl ServerInner {
         audio_decryptor: FairPlayAudioDecryptor,
         consumer: ArcAirPlayConsumer,
     ) -> io::Result<Self> {
-        // TODO: 音频使用的是UDP并非TCP
         let listener = UdpSocket::bind("0.0.0.0:0").await?;
         let port = listener.local_addr()?.port();
         let task = tokio::task::spawn(async move {
@@ -85,13 +84,7 @@ impl AudioPacket {
 struct AudioDecoder;
 
 impl AudioDecoder {
-    // fn new() -> Self {
-    //     Self {
-    //         header_buf: [0; 12],
-    //     }
-    // }
-
-    async fn decode(reader: &[u8]) -> io::Result<Option<AudioPacket>> {
+    async fn decode(reader: &[u8]) -> io::Result<AudioPacket> {
         let header_buf = &reader[..12];
         let body_buf = &reader[12..];
         let flag = header_buf[0];
@@ -103,16 +96,8 @@ impl AudioDecoder {
 
         let ssrc = u32::from_be_bytes(header_buf[8..].try_into().unwrap());
         let mut audio_buf = [0; 480 * 4];
+        // TODO: may be out of bounds
         audio_buf[..body_buf.len()].copy_from_slice(body_buf);
-
-        if reader.len() == 16
-            && reader[12] == 0x0
-            && reader[13] == 0x68
-            && reader[14] == 0x34
-            && reader[15] == 0
-        {
-            return Ok(None);
-        }
 
         let audio_packet = AudioPacket {
             flag,
@@ -123,7 +108,7 @@ impl AudioDecoder {
             audio_buf,
             audio_size: body_buf.len(),
         };
-        Ok(Some(audio_packet))
+        Ok(audio_packet)
     }
 }
 
@@ -219,11 +204,17 @@ async fn audio_hanlde(
     let mut audio_buffer = AudioBuffer::default();
     loop {
         let read_bytes = listener.recv(&mut buf).await.unwrap();
+
+        let buf = &buf[..read_bytes];
+        if read_bytes == 16 && buf[12] == 0x0 && buf[13] == 0x68 && buf[14] == 0x34 && buf[15] == 0
+        {
+            continue;
+        }
         // log::info!("读取到音频数据 大小 = {read_bytes}...");
         // let now = Instant::now();
-        let result = AudioDecoder::decode(&buf[..read_bytes]).await;
+        let result = AudioDecoder::decode(buf).await;
         match result {
-            Ok(Some(packet)) => {
+            Ok(packet) => {
                 log::debug!(
                     "cur_seq_num = {}, first_seq_num = {}, last_seq_num = {}",
                     packet.seq_number,
@@ -237,7 +228,6 @@ async fn audio_hanlde(
                 }
                 // log::info!("耗时 {:?}", now.elapsed());
             }
-            Ok(None) => (),
             Err(err) => {
                 log::error!("audio server read error! {:?}", err);
                 break;
