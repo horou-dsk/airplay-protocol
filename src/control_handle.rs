@@ -170,7 +170,7 @@ impl ControlHandle {
         let mut resp = Response::rtsp_ok(&req);
         let body = req.take_body().unwrap();
         let content_type = req.headers().get("Content-Type");
-        // 未处理
+        // TODO: application/x-dmap-tagged image/none image/jpeg ...
         let data = body.array().await;
         match (content_type, data) {
             (Some(header_value), Ok(data)) if header_value.as_bytes() == b"text/parameters" => {
