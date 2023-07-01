@@ -42,7 +42,9 @@ impl AirPlayConsumer for VideoConsumer {
         log::info!("on audio disconnect");
     }
 
-    fn on_volume(&self, _volume: f32) {}
+    fn on_volume(&self, volume: f32) {
+        log::info!("volume = {volume}");
+    }
 }
 
 #[tokio::main]

@@ -1,5 +1,5 @@
 use futures::future::BoxFuture;
-use hyper::HeaderMap;
+use http::HeaderMap;
 use tokio::{
     io::{self, AsyncReadExt, BufReader},
     net::TcpStream,

@@ -1,4 +1,4 @@
-use std::{fmt::Display, num::NonZeroU16};
+use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Method {
@@ -33,9 +33,6 @@ impl Display for Protocol {
         )
     }
 }
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StatusCode(NonZeroU16);
 
 pub mod request;
 pub mod response;

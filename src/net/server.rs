@@ -1,9 +1,6 @@
-use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use hyper::{
-    http::{HeaderName, HeaderValue},
-    HeaderMap,
-};
+use http::{HeaderMap, HeaderName, HeaderValue};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -17,39 +14,9 @@ use super::{
 
 pub type ResultResp = anyhow::Result<Response>;
 
-pub trait Handler: Clone + 'static {
-    type Output;
-    type Future: Future<Output = Self::Output>;
-
-    fn call(&self, req: Request) -> Self::Future;
-
-    fn fuck(&self);
-}
-
-impl<F, Fut> Handler for F
-where
-    F: Fn(Request) -> Fut + Clone + Send + Sync + 'static,
-    Fut: Future,
-{
-    type Output = Fut::Output;
-
-    type Future = Fut;
-
-    fn call(&self, req: Request) -> Self::Future {
-        (self)(req)
-    }
-
-    fn fuck(&self) {
-        println!("Fuck!!!!!!!!!");
-    }
-}
-
-// type ServiceFn<F, Fut> = Handler<>;
-
 pub struct Server {
     pub addr: SocketAddr,
     pub handle: Arc<Box<dyn ServiceRequest>>,
-    // pub service: F,
 }
 
 fn parse_header(header_str: &str) -> HeaderMap {
@@ -91,7 +58,7 @@ async fn decoder(mut stream: TcpStream, handle: Arc<Box<dyn ServiceRequest>>) ->
             break;
         }
         let methods: Vec<&str> = initial_line.split(' ').collect();
-        log::warn!("methods = {:?}", methods);
+        log::info!("methods = {:?}", methods);
         if methods.len() != 3 {
             continue;
         }

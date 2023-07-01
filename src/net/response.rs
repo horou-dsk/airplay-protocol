@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bytes::Bytes;
-use hyper::StatusCode;
+use http::StatusCode;
 
 use super::{request::Request, Protocol};
 

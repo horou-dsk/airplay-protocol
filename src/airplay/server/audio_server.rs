@@ -186,11 +186,11 @@ impl AudioBuffer {
 
         let entry = self.entries[(self.first_seqnum % AUDIO_BUFFER_LEN) as usize].take();
         if entry.is_none() && entry_count < AUDIO_BUFFER_LEN as i16 {
-            return None;
+            None
+        } else {
+            self.first_seqnum += 1;
+            entry
         }
-        self.first_seqnum += 1;
-        entry.as_ref()?;
-        entry
     }
 }
 
@@ -199,7 +199,7 @@ async fn audio_hanlde(
     audio_decryptor: FairPlayAudioDecryptor,
     consumer: ArcAirPlayConsumer,
 ) {
-    log::warn!("AudioServer 启动...");
+    log::info!("AudioServer 启动...");
     let mut buf = [0; 4096];
     let mut audio_buffer = AudioBuffer::default();
     loop {
@@ -234,5 +234,5 @@ async fn audio_hanlde(
             }
         }
     }
-    log::warn!("AudioServer 结束...");
+    log::info!("AudioServer 结束...");
 }
