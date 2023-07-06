@@ -49,8 +49,8 @@ pub fn garble(
 
     buffer1[34] += buffer4[((buffer2[(buffer1[15] % 35) as usize] + 0x9e) % 21) as usize] / 5;
 
-    buffer0[19] = ((buffer0[19] as isize) + 0xfffffee6
-        - ((buffer0[(buffer3[4] % 20) as usize] >> 1) & 102) as isize) as u8;
+    buffer0[19] = ((buffer0[19] as i64) + 0xfffffee6
+        - ((buffer0[(buffer3[4] % 20) as usize] >> 1) & 102) as i64) as u8;
 
     // This LOOKS like it should be a rol8x, but it just doesnt work out because if the shift amount is 0, then the output is 0 too :(
     // FIXME: Switch to weird_ror8
@@ -168,8 +168,8 @@ pub fn garble(
         & 121;
     B = (((buffer3[20]) + ((buffer3[0]) & 74)) & !(buffer4[(buffer3[0] % 21) as usize])) as isize;
     tmp3 = A | B;
-    C = ((((A | B) ^ 0xffffffa6) | buffer3[0] as isize) & 4)
-        | (((A | B) ^ 0xffffffa6) & buffer3[0] as isize);
+    C = (((((A | B) as i64 ^ 0xffffffa6) | buffer3[0] as i64) & 4)
+        | (((A | B) as i64 ^ 0xffffffa6) & buffer3[0] as i64)) as isize;
     buffer1[47] ^= ((buffer2[(buffer1[89] % 35) as usize]) as isize + C) as u8;
 
     buffer3[36] =
@@ -379,7 +379,7 @@ pub fn garble(
         buffer0[12] as isize,
         ((buffer0[(buffer1[61] % 20) as usize]) / 5) as isize & 7,
     ) as u8
-        ^ (((!buffer2[(buffer3[84] % 35) as usize]) as isize & 0xffffffff) / 5) as u8;
+        ^ (((!buffer2[(buffer3[84] % 35) as usize]) as i64 & 0xffffffff) / 5) as u8;
 
     buffer1[198] += buffer1[3];
 

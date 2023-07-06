@@ -64,7 +64,7 @@ async fn main() -> tokio::io::Result<()> {
         fps: 30,
         port,
     };
-    let video_consumer: ArcAirPlayConsumer = Arc::new(Box::new(VideoConsumer));
+    let video_consumer: ArcAirPlayConsumer = Arc::new(VideoConsumer);
     let mserver = MServer::bind(
         addr,
         ControlHandle::new(airplay_config, video_consumer.clone(), video_consumer),

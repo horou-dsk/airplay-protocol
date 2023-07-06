@@ -1,9 +1,38 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 
+use default_net::interface::MacAddr;
 use libmdns::Service;
 
 const AIRPLAY_SERVICE_TYPE: &str = "_airplay._tcp";
+#[allow(dead_code)]
 const AIRTUNES_SERVICE_TYPE: &str = "_raop._tcp";
+
+fn get_ip() -> Result<Vec<(Ipv4Addr, Ipv4Addr, MacAddr)>, String> {
+    if cfg!(windows) {
+        let default_interface = default_net::get_default_interface()?;
+        let mac_addr = default_interface.mac_addr.unwrap();
+        Ok(default_interface
+            .ipv4
+            .into_iter()
+            .map(|ip| (ip.addr, ip.netmask, mac_addr.clone()))
+            .collect())
+    } else {
+        let mut ip_list = Vec::new();
+        let interfaces = default_net::get_interfaces();
+        for interface in interfaces {
+            // println!("{:?}", interface);
+            if interface.if_type == default_net::interface::InterfaceType::Ethernet
+                || interface.if_type == default_net::interface::InterfaceType::Wireless80211
+            {
+                let mac_addr = interface.mac_addr.unwrap();
+                for ip in interface.ipv4 {
+                    ip_list.push((ip.addr, ip.netmask, mac_addr.clone()));
+                }
+            }
+        }
+        Ok(ip_list)
+    }
+}
 
 pub struct AirPlayBonjour {
     _services: Vec<Service>,
@@ -12,10 +41,14 @@ pub struct AirPlayBonjour {
 impl AirPlayBonjour {
     pub fn new(service_name: &str, port: u16, pw: bool) -> Self {
         let mut services = Vec::new();
-        let interface = default_net::get_default_interface().unwrap();
-        let ip = IpAddr::V4(interface.ipv4[0].addr);
-        let responder = libmdns::Responder::new_with_ip_list(vec![ip]).unwrap();
-        let mac = interface.mac_addr.unwrap().to_string();
+        let local_ips = get_ip().unwrap();
+        // let interface = default_net::get_default_interface().unwrap();
+        // let ip = IpAddr::V4(interface.ipv4[0].addr);
+        let responder = libmdns::Responder::new_with_ip_list(
+            local_ips.iter().map(|v| IpAddr::V4(v.0)).collect(),
+        )
+        .expect("libmdns new error!");
+        let mac = local_ips[0].2.to_string();
         let props = vec![
             ("deviceid", mac.to_string()),
             ("features", "0x5A7FFFF7,0x1E".to_string()),
@@ -37,7 +70,7 @@ impl AirPlayBonjour {
         let props: Vec<String> = props.iter().map(|v| format!("{}={}", v.0, v.1)).collect();
         let props: Vec<&str> = props.iter().map(|v| v.as_str()).collect();
         let svc = responder.register(
-            format!("{}", AIRPLAY_SERVICE_TYPE),
+            AIRPLAY_SERVICE_TYPE.to_string(),
             service_name.into(),
             port,
             &props[..],
@@ -69,12 +102,7 @@ impl AirPlayBonjour {
         ];
         let props: Vec<String> = props.iter().map(|v| format!("{}={}", v.0, v.1)).collect();
         let props: Vec<&str> = props.iter().map(|v| v.as_str()).collect();
-        let svc = responder.register(
-            format!("{}", AIRTUNES_SERVICE_TYPE),
-            service_name,
-            port,
-            &props,
-        );
+        let svc = responder.register(AIRPLAY_SERVICE_TYPE.to_string(), service_name, port, &props);
         services.push(svc);
         Self {
             _services: services,

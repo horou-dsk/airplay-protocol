@@ -18,4 +18,4 @@ pub trait AirPlayConsumer: Send + Sync {
     fn on_volume(&self, volume: f32);
 }
 
-pub type ArcAirPlayConsumer = Arc<Box<dyn AirPlayConsumer>>;
+pub type ArcAirPlayConsumer = Arc<dyn AirPlayConsumer>;
