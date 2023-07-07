@@ -15,8 +15,9 @@ use super::{
 pub type ResultResp = anyhow::Result<Response>;
 
 pub struct Server {
-    pub addr: SocketAddr,
+    listener: TcpListener,
     pub handle: Arc<Box<dyn ServiceRequest>>,
+    pub port: u16,
 }
 
 fn parse_header(header_str: &str) -> HeaderMap {
@@ -109,19 +110,36 @@ async fn decoder(mut stream: TcpStream, handle: Arc<Box<dyn ServiceRequest>>) ->
 }
 
 impl Server {
-    pub fn bind<T>(addr: SocketAddr, handle: T) -> Self
+    pub async fn bind_with_addr<T>(addr: SocketAddr, handle: T) -> Self
     where
         T: ServiceRequest,
         T: 'static,
     {
+        let port = addr.port();
+        let listener = TcpListener::bind(addr).await.unwrap();
         Self {
-            addr,
+            port,
+            listener,
+            handle: Arc::new(Box::new(handle)),
+        }
+    }
+
+    pub async fn bind_default<T>(handle: T) -> Self
+    where
+        T: ServiceRequest,
+        T: 'static,
+    {
+        let listener = TcpListener::bind("0.0.0.0:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        Self {
+            port,
+            listener,
             handle: Arc::new(Box::new(handle)),
         }
     }
 
     pub async fn run(self) -> io::Result<()> {
-        let listener = TcpListener::bind(self.addr).await?;
+        let listener = self.listener;
         loop {
             let (stream, _) = listener.accept().await?;
             tokio::task::spawn(decoder(stream, self.handle.clone()));

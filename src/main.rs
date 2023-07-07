@@ -65,10 +65,11 @@ async fn main() -> tokio::io::Result<()> {
         port,
     };
     let video_consumer: ArcAirPlayConsumer = Arc::new(VideoConsumer);
-    let mserver = MServer::bind(
+    let mserver = MServer::bind_with_addr(
         addr,
         ControlHandle::new(airplay_config, video_consumer.clone(), video_consumer),
-    );
+    )
+    .await;
     mserver.run().await?;
     Ok(())
 }
