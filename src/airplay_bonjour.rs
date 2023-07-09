@@ -22,6 +22,7 @@ fn get_ip() -> Result<Vec<(Ipv4Addr, Ipv4Addr, Option<MacAddr>)>, String> {
         for interface in interfaces {
             if interface.if_type == default_net::interface::InterfaceType::Ethernet
                 || interface.if_type == default_net::interface::InterfaceType::Wireless80211
+                || interface.name == "wlan0"
             {
                 let mac_addr = interface.mac_addr;
                 for ip in interface.ipv4 {
