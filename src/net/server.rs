@@ -39,7 +39,11 @@ fn parse_header(header_str: &str) -> HeaderMap {
     map
 }
 
-async fn decoder(mut stream: TcpStream, handle: Arc<Box<dyn ServiceRequest>>) -> io::Result<()> {
+async fn decoder(
+    mut stream: TcpStream,
+    handle: Arc<Box<dyn ServiceRequest>>,
+    server_port: u16,
+) -> io::Result<()> {
     log::info!("连接进入....");
     // let mut index = 0;
     loop {
@@ -89,7 +93,7 @@ async fn decoder(mut stream: TcpStream, handle: Arc<Box<dyn ServiceRequest>>) ->
             .unwrap_or(0);
 
         let body = Body::new(content_length, reader);
-        let request = Request::new(method, protocol, uri, body, headers);
+        let request = Request::new(method, protocol, uri, body, headers, server_port);
         let resp = handle.call(request).await;
 
         match resp {
@@ -142,7 +146,7 @@ impl Server {
         let listener = self.listener;
         loop {
             let (stream, _) = listener.accept().await?;
-            tokio::task::spawn(decoder(stream, self.handle.clone()));
+            tokio::task::spawn(decoder(stream, self.handle.clone(), self.port));
         }
     }
 }

@@ -57,6 +57,7 @@ pub struct Request<'a> {
     uri: &'a str,
     body: Option<Body<'a>>,
     headers: HeaderMap,
+    server_port: u16,
 }
 
 impl<'a> Request<'a> {
@@ -66,6 +67,7 @@ impl<'a> Request<'a> {
         uri: &'a str,
         body: Body<'a>,
         headers: HeaderMap,
+        server_port: u16,
     ) -> Self {
         Self {
             method,
@@ -73,6 +75,7 @@ impl<'a> Request<'a> {
             uri,
             body: Some(body),
             headers,
+            server_port,
         }
     }
 
@@ -98,6 +101,10 @@ impl<'a> Request<'a> {
 
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
+    }
+
+    pub fn server_port(&self) -> u16 {
+        self.server_port
     }
 }
 

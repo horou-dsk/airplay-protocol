@@ -119,6 +119,7 @@ impl ControlHandle {
     async fn handle_rtsp_setup(&self, req: Request<'_>) -> ResultResp {
         let session = self.resolve_session(&req).await;
         let resp = Response::rtsp_ok(&req);
+        let server_port = req.server_port();
         let data = req.into_body().array().await.expect("body read error");
         let data = session.airplay.write().await.rstp_setup(&data);
         if let Some(data) = data {
@@ -135,7 +136,7 @@ impl ControlHandle {
                         .expect("start video server error!");
                     let setup = property_list::prepare_setup_video_response(
                         video_server.get_port(),
-                        self.airplay_config.port,
+                        server_port,
                         0,
                     );
                     Ok(resp.bytes_body(setup))
@@ -152,7 +153,7 @@ impl ControlHandle {
                         .expect("start audio server error!");
                     let setup = property_list::prepare_setup_audio_response(
                         audio_server.get_port().await,
-                        self.airplay_config.port,
+                        server_port,
                     );
                     Ok(resp.bytes_body(setup))
                 }
