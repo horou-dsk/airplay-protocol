@@ -199,7 +199,7 @@ async fn audio_hanlde(
     audio_decryptor: FairPlayAudioDecryptor,
     consumer: ArcAirPlayConsumer,
 ) {
-    log::info!("AudioServer 启动...");
+    log::info!("AudioServer new connection coming in...");
     let mut buf = [0; 4096];
     let mut audio_buffer = AudioBuffer::default();
     loop {
@@ -210,8 +210,6 @@ async fn audio_hanlde(
         {
             continue;
         }
-        // log::info!("读取到音频数据 大小 = {read_bytes}...");
-        // let now = Instant::now();
         let result = AudioDecoder::decode(buf).await;
         match result {
             Ok(packet) => {
@@ -226,7 +224,6 @@ async fn audio_hanlde(
                     audio_decryptor.decrypt(packet.audio_buf_mut());
                     consumer.on_audio(packet.audio_buf());
                 }
-                // log::info!("耗时 {:?}", now.elapsed());
             }
             Err(err) => {
                 log::error!("audio server read error! {:?}", err);
@@ -234,5 +231,5 @@ async fn audio_hanlde(
             }
         }
     }
-    log::info!("AudioServer 结束...");
+    log::info!("AudioServer disconnected...");
 }

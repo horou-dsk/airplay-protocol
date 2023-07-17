@@ -1,7 +1,5 @@
 #![allow(clippy::uninit_vec)]
 
-// use std::io::Cursor;
-
 use tokio::io::{AsyncRead, AsyncReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::task::JoinHandle;
@@ -12,7 +10,7 @@ use crate::airplay::lib::fairplay_video_decryptor::FairPlayVideoDecryptor;
 
 #[derive(Default)]
 pub struct VideoServer {
-    server: Option<VideoServer1>,
+    server: Option<ServerInner>,
 }
 
 impl VideoServer {
@@ -21,7 +19,7 @@ impl VideoServer {
         video_decryptor: FairPlayVideoDecryptor,
         consumer: ArcAirPlayConsumer,
     ) -> io::Result<()> {
-        self.server = Some(VideoServer1::start(video_decryptor, consumer).await?);
+        self.server = Some(ServerInner::start(video_decryptor, consumer).await?);
         Ok(())
     }
 
@@ -34,12 +32,12 @@ impl VideoServer {
     }
 }
 
-struct VideoServer1 {
+struct ServerInner {
     task: JoinHandle<()>,
     port: u16,
 }
 
-impl VideoServer1 {
+impl ServerInner {
     pub async fn start(
         video_decryptor: FairPlayVideoDecryptor,
         consumer: ArcAirPlayConsumer,
@@ -67,7 +65,7 @@ impl VideoServer1 {
     // pub fn stop(self) {}
 }
 
-impl Drop for VideoServer1 {
+impl Drop for ServerInner {
     fn drop(&mut self) {
         self.task.abort();
     }
@@ -111,7 +109,6 @@ impl VideoDecoder {
             match self.state {
                 DecoderState::ReadHeader => {
                     reader.read_exact(&mut self.header_buf).await?;
-                    // log::info!("header {:?}", self.header_buf);
                     // let mut head_cur = Cursor::new(&mut self.header_buf);
                     // self.payload_size = head_cur.read_u32_le().await? as usize;
                     // self.payload_type = head_cur.read_u16_le().await? & 0xFF;
@@ -173,7 +170,6 @@ fn prepare_picture_nal_units(payload: &mut [u8]) {
             idx += nalu_size + 4;
         }
         if payload.len() - nalu_size > 4 {
-            // log::error!("{:?}", payload);
             log::error!(
                 "Video packet contains corrupted NAL unit. It might be decrypt error idx = {idx}"
             );
@@ -212,11 +208,10 @@ async fn video_hanlde(
     mut video_decryptor: FairPlayVideoDecryptor,
     consumer: ArcAirPlayConsumer,
 ) {
-    log::info!("VideoServer 连接进入...");
+    log::info!("AudioServer new connection coming in...");
     let mut decoder = VideoDecoder::new();
     let mut reader = BufReader::new(stream);
     loop {
-        // log::info!("读取中...");
         let result = decoder.decode(&mut reader).await;
         match result {
             Ok(packet) => {
@@ -248,7 +243,7 @@ async fn video_hanlde(
             }
         }
     }
-    log::info!("VideoServer 连接断开...");
+    log::info!("VideoServer disconnected...");
 }
 
 #[cfg(test)]
