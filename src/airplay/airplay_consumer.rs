@@ -3,7 +3,7 @@ use std::sync::Arc;
 use super::lib::{audio_stream_info::AudioStreamInfo, video_stream_info::VideoStreamInfo};
 
 pub trait AirPlayConsumer: Send + Sync {
-    fn on_video(&self, bytes: Vec<u8>);
+    fn on_video(&self, bytes: &[u8]);
 
     fn on_video_format(&self, video_stream_info: VideoStreamInfo);
 
@@ -11,7 +11,7 @@ pub trait AirPlayConsumer: Send + Sync {
 
     fn on_audio_format(&self, audio_stream_info: AudioStreamInfo);
 
-    fn on_audio(&self, bytes: Vec<u8>);
+    fn on_audio(&self, bytes: &[u8]);
 
     fn on_audio_src_disconnect(&self);
 

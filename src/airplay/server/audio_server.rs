@@ -224,7 +224,7 @@ async fn audio_hanlde(
                 audio_buffer.buffer_enqueue(packet);
                 while let Some(mut packet) = audio_buffer.buffer_dequeue() {
                     audio_decryptor.decrypt(packet.audio_buf_mut());
-                    consumer.on_audio(packet.audio_buf().to_vec());
+                    consumer.on_audio(packet.audio_buf());
                 }
                 // log::info!("耗时 {:?}", now.elapsed());
             }

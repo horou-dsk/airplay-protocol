@@ -231,11 +231,11 @@ async fn video_hanlde(
                         0 => {
                             video_decryptor.decrypt(&mut video_packet.payload);
                             prepare_picture_nal_units(&mut video_packet.payload);
-                            consumer.on_video(video_packet.payload.to_vec());
+                            consumer.on_video(&video_packet.payload);
                         }
                         1 => {
                             if let Some(buffer) = prepare_sps_pps_nal_units(&video_packet.payload) {
-                                consumer.on_video(buffer);
+                                consumer.on_video(&buffer);
                             }
                         }
                         _ => (),
