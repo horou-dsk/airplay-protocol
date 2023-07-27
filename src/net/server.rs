@@ -16,7 +16,7 @@ pub type ResultResp = anyhow::Result<Response>;
 
 pub struct Server {
     listener: TcpListener,
-    pub handle: Arc<Box<dyn ServiceRequest>>,
+    pub handle: Arc<dyn ServiceRequest>,
     pub port: u16,
 }
 
@@ -41,7 +41,7 @@ fn parse_header(header_str: &str) -> HeaderMap {
 
 async fn decoder(
     mut stream: TcpStream,
-    handle: Arc<Box<dyn ServiceRequest>>,
+    handle: Arc<dyn ServiceRequest>,
     server_port: u16,
 ) -> io::Result<()> {
     log::info!("连接进入....");
@@ -124,7 +124,7 @@ impl Server {
         Self {
             port,
             listener,
-            handle: Arc::new(Box::new(handle)),
+            handle: Arc::new(handle),
         }
     }
 
@@ -138,7 +138,7 @@ impl Server {
         Self {
             port,
             listener,
-            handle: Arc::new(Box::new(handle)),
+            handle: Arc::new(handle),
         }
     }
 

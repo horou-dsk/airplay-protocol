@@ -14,7 +14,7 @@ pub(super) fn sap_hash(block_in: &[u8], key_out: &mut [u8]) {
         81, 74, 170, 9, 62, 254, 68, 175, 222, 195, 32, 157, 66, 58,
     ];
     let mut buffer3 = [0; 132];
-    let mut buffer4 = [
+    let buffer4 = [
         237, 37, 209, 187, 188, 39, 159, 2, 162, 169, 17, 0, 12, 179, 82, 192, 189, 227, 27, 73,
         199,
     ];
@@ -47,7 +47,7 @@ pub(super) fn sap_hash(block_in: &[u8], key_out: &mut [u8]) {
         &mut buffer1,
         &mut buffer2,
         &mut buffer3,
-        &mut buffer4,
+        &buffer4,
     );
 
     // Fill the output with 0xE1

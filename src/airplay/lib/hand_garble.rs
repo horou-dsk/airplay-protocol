@@ -4,7 +4,7 @@ pub fn garble(
     buffer1: &mut [u8],
     buffer2: &mut [u8],
     buffer3: &mut [u8],
-    buffer4: &mut [u8],
+    buffer4: &[u8],
 ) {
     let (tmp, tmp2, tmp3);
     let (mut A, mut B, mut C, mut D, mut E, M, J, mut G, mut F, H, K, R, S, T, U, V, W, X, Y, Z);
