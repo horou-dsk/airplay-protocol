@@ -62,7 +62,7 @@ impl AirPlayBonjour {
             .unwrap_or_else(|| "00:AA:BB:CC:DD:FF".to_string()); // TODO: Fix Me
         let props = vec![
             ("deviceid", mac.to_string()),
-            ("features", "0x5A7FFFF7,0x1E".to_string()),
+            ("features", "0x527FFFF7,0x1E".to_string()),
             ("srcvers", "220.68".to_string()),
             ("flags", "0x44".to_string()),
             ("vv", "2".to_string()),

@@ -188,7 +188,8 @@ fn prepare_sps_pps_nal_units(payload: &[u8]) -> Option<Vec<u8>> {
 
     let payload = &payload[9 + sps_size..];
 
-    let pps_size = u16::from_be_bytes(payload[..2].try_into().unwrap()) as usize;
+    let pps_size = (((payload[0] as u16 & 2040) + payload[1] as u16) & 255) as usize;
+    // let pps_size = u16::from_be_bytes(payload[..2].try_into().unwrap()) as usize;
     let pps = &payload[2..2 + pps_size];
 
     let sps_pps_size = sps_size + pps_size + 8;
