@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc, time::Duration};
+use std::{net::SocketAddr, sync::Arc};
 
 use http::{HeaderMap, HeaderName, HeaderValue};
 use tokio::{
@@ -52,12 +52,12 @@ async fn decoder(
 
         let mut reader = BufReader::new(&mut stream);
         let mut initial_line = String::new();
-        let amt = if let Ok(r) =
-            tokio::time::timeout(Duration::from_secs(60), reader.read_line(&mut initial_line)).await
-        {
-            r?
-        } else {
-            break;
+        let amt = match reader.read_line(&mut initial_line).await {
+            Ok(amt) => amt,
+            Err(err) => {
+                log::error!("read_line error = {:?}", err);
+                break;
+            }
         };
         if amt == 0 {
             break;
