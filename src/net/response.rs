@@ -93,4 +93,8 @@ impl Response {
         self.status = status_code;
         self
     }
+
+    pub fn status(&self) -> StatusCode {
+        self.status
+    }
 }

@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use http::{HeaderMap, HeaderName, HeaderValue};
+use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use tokio::{
     io::{self, AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -98,6 +98,9 @@ async fn decoder(
 
         match resp {
             Ok(resp) => {
+                if resp.status() == StatusCode::INTERNAL_SERVER_ERROR {
+                    break;
+                }
                 let resp_bytes = resp.into_bytes();
                 stream.write_all(&resp_bytes).await?;
                 // log::info!("resp = \n{}", String::from_utf8_lossy(&resp_bytes));
