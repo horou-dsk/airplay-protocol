@@ -3,6 +3,7 @@ pub struct AirPlayConfig {
     pub width: u32,
     pub height: u32,
     pub fps: u16,
+    pub volume: f32,
 }
 pub mod airplay_consumer;
 pub mod lib;

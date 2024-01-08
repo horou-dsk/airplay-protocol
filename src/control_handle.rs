@@ -164,7 +164,8 @@ impl ControlHandle {
     }
 
     async fn handle_rtsp_get_parameter(&self, req: Request<'_>) -> ResultResp {
-        Ok(Response::rtsp_ok(&req).slice_body(b"volume: 0.000000\r\n"))
+        let volume = -30.0 - self.airplay_config.volume / 1.0 * -30.0;
+        Ok(Response::rtsp_ok(&req).slice_body(format!("volume: {volume:.6}\r\n").as_bytes()))
     }
 
     async fn handle_rtsp_set_parameter(&self, mut req: Request<'_>) -> ResultResp {
