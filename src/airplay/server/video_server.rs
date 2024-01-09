@@ -71,10 +71,10 @@ impl Drop for ServerInner {
     }
 }
 
-pub struct VideoPacket {
+pub struct VideoPacket<'a> {
     pub payload_type: u16,
     pub payload_size: usize,
-    pub payload: Vec<u8>,
+    pub payload: &'a mut [u8],
 }
 
 enum DecoderState {
@@ -87,7 +87,8 @@ struct VideoDecoder {
     payload_size: usize,
     payload_type: u16,
     header_buf: [u8; 128],
-    payload_buf: [u8; 2048],
+    payload_skip_buf: [u8; 32768],
+    payload_buf: Vec<u8>,
 }
 
 impl VideoDecoder {
@@ -97,7 +98,8 @@ impl VideoDecoder {
             payload_size: 0,
             payload_type: 0,
             header_buf: [0; 128],
-            payload_buf: [0; 2048],
+            payload_skip_buf: [0; 32768],
+            payload_buf: Vec::with_capacity(32768),
         }
     }
 
@@ -120,14 +122,19 @@ impl VideoDecoder {
                 }
                 DecoderState::ReadPayload => {
                     if self.payload_type == 0 || self.payload_type == 1 {
-                        let mut payload_buf = Vec::with_capacity(self.payload_size);
-                        unsafe { payload_buf.set_len(self.payload_size) };
-                        reader.read_exact(&mut payload_buf).await?;
+                        if self.payload_size > self.payload_buf.len() {
+                            self.payload_buf.resize(self.payload_size, 0);
+                        }
+                        // let mut payload_buf = Vec::with_capacity(self.payload_size);
+                        // unsafe { payload_buf.set_len(self.payload_size) };
+                        reader
+                            .read_exact(&mut self.payload_buf[..self.payload_size])
+                            .await?;
                         self.state = DecoderState::ReadHeader;
                         return Ok(Some(VideoPacket {
                             payload_type: self.payload_type,
                             payload_size: self.payload_size,
-                            payload: payload_buf,
+                            payload: &mut self.payload_buf[..self.payload_size],
                         }));
                     } else {
                         log::info!(
@@ -138,11 +145,11 @@ impl VideoDecoder {
                         let mut already_size = 0;
                         loop {
                             let len =
-                                (self.payload_size - already_size).min(self.payload_buf.len());
+                                (self.payload_size - already_size).min(self.payload_skip_buf.len());
                             if len == 0 {
                                 break;
                             }
-                            reader.read_exact(&mut self.payload_buf[..len]).await?;
+                            reader.read_exact(&mut self.payload_skip_buf[..len]).await?;
                             already_size += len;
                         }
                         self.state = DecoderState::ReadHeader;
@@ -178,7 +185,7 @@ fn prepare_picture_nal_units(payload: &mut [u8]) {
     }
 }
 
-fn prepare_sps_pps_nal_units(payload: &[u8]) -> Option<Vec<u8>> {
+fn prepare_sps_pps_nal_units(payload: &[u8], out: &mut [u8]) -> Option<usize> {
     if payload.len() < 10 {
         log::error!("video len error");
         return None;
@@ -195,13 +202,20 @@ fn prepare_sps_pps_nal_units(payload: &[u8]) -> Option<Vec<u8>> {
     let sps_pps_size = sps_size + pps_size + 8;
     log::info!("SPS PPS length: {}", sps_pps_size);
 
-    let mut sps_pps = Vec::with_capacity(sps_pps_size);
-    sps_pps.extend_from_slice(&[0, 0, 0, 1]);
-    sps_pps.extend_from_slice(seq_par_set);
-    sps_pps.extend_from_slice(&[0, 0, 0, 1]);
-    sps_pps.extend_from_slice(pps);
+    // let mut sps_pps = Vec::with_capacity(sps_pps_size);
+    let mut offset = 4;
+    out[..offset].copy_from_slice(&[0, 0, 0, 1]);
+    out[offset..seq_par_set.len() + offset].copy_from_slice(seq_par_set);
+    offset += seq_par_set.len();
+    out[offset..offset + 4].copy_from_slice(&[0, 0, 0, 1]);
+    offset += 4;
+    out[offset..pps.len() + offset].copy_from_slice(pps);
+    // sps_pps.extend_from_slice(&[0, 0, 0, 1]);
+    // sps_pps.extend_from_slice(seq_par_set);
+    // sps_pps.extend_from_slice(&[0, 0, 0, 1]);
+    // sps_pps.extend_from_slice(pps);
 
-    Some(sps_pps)
+    Some(pps.len() + offset)
 }
 
 async fn video_hanlde(
@@ -212,11 +226,12 @@ async fn video_hanlde(
     log::info!("AudioServer new connection coming in...");
     let mut decoder = VideoDecoder::new();
     let mut reader = BufReader::new(stream);
+    let mut sps_pps = [0; 256];
     loop {
         let result = decoder.decode(&mut reader).await;
         match result {
             Ok(packet) => {
-                if let Some(mut video_packet) = packet {
+                if let Some(video_packet) = packet {
                     // log::info!(
                     //     "payload_type = {}, payload_size = {}, payload_len = {}",
                     //     video_packet.payload_type,
@@ -225,13 +240,15 @@ async fn video_hanlde(
                     // );
                     match video_packet.payload_type {
                         0 => {
-                            video_decryptor.decrypt(&mut video_packet.payload);
-                            prepare_picture_nal_units(&mut video_packet.payload);
-                            consumer.on_video(&video_packet.payload);
+                            video_decryptor.decrypt(video_packet.payload);
+                            prepare_picture_nal_units(video_packet.payload);
+                            consumer.on_video(video_packet.payload);
                         }
                         1 => {
-                            if let Some(buffer) = prepare_sps_pps_nal_units(&video_packet.payload) {
-                                consumer.on_video(&buffer);
+                            if let Some(size) =
+                                prepare_sps_pps_nal_units(video_packet.payload, &mut sps_pps)
+                            {
+                                consumer.on_video(&sps_pps[..size]);
                             }
                         }
                         _ => (),
@@ -274,12 +291,14 @@ mod tests {
         let packet = decoder.decode(&mut reader).await.unwrap().unwrap();
         assert_eq!(1, packet.payload_type);
         assert_eq!(36, packet.payload_size);
+        let mut out = [0; 256];
+        let size = prepare_sps_pps_nal_units(packet.payload, &mut out).unwrap();
         assert_eq!(
             jb_to_rb!([
                 0, 0, 0, 1, 39, 100, 0, 31, -84, 19, 20, 80, 84, 22, -6, -26, -32, 32, 32, 32, 64,
                 0, 0, 0, 1, 40, -18, 60, -80
             ]),
-            &prepare_sps_pps_nal_units(&packet.payload).unwrap()[..]
+            out[..size]
         )
     }
 
