@@ -69,6 +69,22 @@ struct AudioPacket {
     ssrc: u32,
     audio_buf: [u8; 480 * 4],
     audio_size: usize,
+    filled: bool,
+}
+
+impl Default for AudioPacket {
+    fn default() -> Self {
+        Self {
+            audio_buf: [0; 480 * 4],
+            flag: 0,
+            ty: 0,
+            seq_number: 0,
+            timestamp: 0,
+            ssrc: 0,
+            audio_size: 0,
+            filled: false,
+        }
+    }
 }
 
 impl AudioPacket {
@@ -79,12 +95,23 @@ impl AudioPacket {
     fn audio_buf(&self) -> &[u8] {
         &self.audio_buf[..self.audio_size]
     }
+
+    fn copy(&mut self, packet: &AudioPacket) {
+        self.flag = packet.flag;
+        self.ty = packet.ty;
+        self.seq_number = packet.seq_number;
+        self.timestamp = packet.timestamp;
+        self.ssrc = packet.ssrc;
+        self.filled = packet.filled;
+        self.audio_size = packet.audio_size;
+        self.audio_buf[..packet.audio_size].copy_from_slice(packet.audio_buf());
+    }
 }
 
-struct AudioDecoder;
+struct AudioDecoder(AudioPacket);
 
 impl AudioDecoder {
-    async fn decode(reader: &[u8]) -> io::Result<AudioPacket> {
+    async fn decode(&mut self, reader: &[u8]) -> io::Result<&AudioPacket> {
         let header_buf = &reader[..12];
         let body_buf = &reader[12..];
         let flag = header_buf[0];
@@ -95,25 +122,34 @@ impl AudioDecoder {
         let timestamp = u32::from_be_bytes(header_buf[4..8].try_into().unwrap());
 
         let ssrc = u32::from_be_bytes(header_buf[8..].try_into().unwrap());
-        let mut audio_buf = [0; 480 * 4];
+        // let mut audio_buf = [0; 480 * 4];
         // TODO: may be out of bounds
-        audio_buf[..body_buf.len()].copy_from_slice(body_buf);
+        // audio_buf[..body_buf.len()].copy_from_slice(body_buf);
 
-        let audio_packet = AudioPacket {
-            flag,
-            ty,
-            seq_number,
-            timestamp,
-            ssrc,
-            audio_buf,
-            audio_size: body_buf.len(),
-        };
-        Ok(audio_packet)
+        self.0.flag = flag;
+        self.0.ty = ty;
+        self.0.seq_number = seq_number;
+        self.0.timestamp = timestamp;
+        self.0.ssrc = ssrc;
+        self.0.audio_buf[..body_buf.len()].copy_from_slice(body_buf);
+        self.0.audio_size = body_buf.len();
+        self.0.filled = true;
+        // let audio_packet = AudioPacket {
+        //     flag,
+        //     ty,
+        //     seq_number,
+        //     timestamp,
+        //     ssrc,
+        //     audio_buf,
+        //     audio_size: body_buf.len(),
+        // };
+        Ok(&self.0)
     }
 }
 
 const AUDIO_BUFFER_LEN: u16 = 32;
 
+#[inline]
 fn seqnum_cmp(s1: u16, s2: u16) -> i16 {
     (s1 - s2) as i16
 }
@@ -122,7 +158,7 @@ struct AudioBuffer {
     first_seqnum: u16,
     last_seqnum: u16,
     is_empty: bool,
-    entries: [Option<AudioPacket>; AUDIO_BUFFER_LEN as usize],
+    entries: [AudioPacket; AUDIO_BUFFER_LEN as usize],
 }
 
 impl Default for AudioBuffer {
@@ -138,7 +174,9 @@ impl Default for AudioBuffer {
 
 impl AudioBuffer {
     fn buffer_flush(&mut self, next_seq: u16) {
-        self.entries.iter_mut().for_each(|entry| *entry = None);
+        self.entries
+            .iter_mut()
+            .for_each(|entry| entry.filled = false);
         if !(0..=0xFFFF).contains(&next_seq) {
             self.is_empty = true;
         } else {
@@ -147,7 +185,7 @@ impl AudioBuffer {
         }
     }
 
-    fn buffer_enqueue(&mut self, packet: AudioPacket) {
+    fn buffer_enqueue(&mut self, packet: &AudioPacket) {
         let seq_number = packet.seq_number;
 
         // If this packet is too late, just skip it
@@ -160,13 +198,11 @@ impl AudioBuffer {
         }
 
         let entry = &mut self.entries[(seq_number % AUDIO_BUFFER_LEN) as usize];
-        if let Some(entry) = entry {
-            if seqnum_cmp(entry.seq_number, seq_number) == 0 {
-                return;
-            }
+        if entry.filled && seqnum_cmp(entry.seq_number, seq_number) == 0 {
+            return;
         }
 
-        *entry = Some(packet);
+        entry.copy(packet);
 
         if self.is_empty {
             self.first_seqnum = seq_number;
@@ -178,18 +214,27 @@ impl AudioBuffer {
         }
     }
 
-    fn buffer_dequeue(&mut self) -> Option<AudioPacket> {
-        let entry_count: i16 = (self.last_seqnum - self.first_seqnum) as i16 + 1;
+    fn buffer_dequeue(&mut self) -> Option<&mut AudioPacket> {
+        let entry_count = seqnum_cmp(self.last_seqnum, self.first_seqnum) + 1;
         if self.is_empty || entry_count <= 0 {
             return None;
         }
 
-        let entry = self.entries[(self.first_seqnum % AUDIO_BUFFER_LEN) as usize].take();
-        if entry.is_none() && entry_count < AUDIO_BUFFER_LEN as i16 {
-            None
+        let entry = &mut self.entries[(self.first_seqnum % AUDIO_BUFFER_LEN) as usize];
+        if !entry.filled {
+            /* Check how much we have space left in the buffer */
+            if entry_count < AUDIO_BUFFER_LEN as i16 {
+                /* Return nothing and hope resend gets on time */
+                return None;
+            }
+            /* Risk of buffer overrun, return empty buffer */
+        }
+        self.first_seqnum += 1;
+        if entry.filled {
+            entry.filled = false;
+            Some(entry)
         } else {
-            self.first_seqnum += 1;
-            entry
+            None
         }
     }
 }
@@ -202,6 +247,7 @@ async fn audio_hanlde(
     log::info!("AudioServer new connection coming in...");
     let mut buf = [0; 4096];
     let mut audio_buffer = AudioBuffer::default();
+    let mut decoder = AudioDecoder(Default::default());
     loop {
         let read_bytes = listener.recv(&mut buf).await.unwrap();
 
@@ -210,7 +256,7 @@ async fn audio_hanlde(
         {
             continue;
         }
-        let result = AudioDecoder::decode(buf).await;
+        let result = decoder.decode(buf).await;
         match result {
             Ok(packet) => {
                 log::debug!(
@@ -220,7 +266,7 @@ async fn audio_hanlde(
                     audio_buffer.last_seqnum
                 );
                 audio_buffer.buffer_enqueue(packet);
-                while let Some(mut packet) = audio_buffer.buffer_dequeue() {
+                while let Some(packet) = audio_buffer.buffer_dequeue() {
                     audio_decryptor.decrypt(packet.audio_buf_mut());
                     consumer.on_audio(packet.audio_buf());
                 }
