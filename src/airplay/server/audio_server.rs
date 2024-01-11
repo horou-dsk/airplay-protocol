@@ -147,7 +147,7 @@ impl AudioDecoder {
     }
 }
 
-const AUDIO_BUFFER_LEN: u16 = 32;
+const AUDIO_BUFFER_LEN: u16 = 8;
 
 #[inline]
 fn seqnum_cmp(s1: u16, s2: u16) -> i16 {
