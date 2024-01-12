@@ -104,7 +104,7 @@ impl AudioPacket {
         self.ssrc = packet.ssrc;
         self.filled = packet.filled;
         self.audio_size = packet.audio_size;
-        self.audio_buf[..packet.audio_size].copy_from_slice(packet.audio_buf());
+        self.audio_buf[..packet.audio_size].copy_from_slice(&packet.audio_buf[..packet.audio_size]);
     }
 }
 

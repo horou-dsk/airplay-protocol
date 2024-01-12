@@ -29,9 +29,8 @@ impl FairPlayAudioDecryptor {
 
     pub fn decrypt(&self, audio: &mut [u8]) {
         let mut aes_cbc_decrypt = self.aes_cbc_decrypt.clone(); //Aes128CbcDec::new(&self.e_aes_key.into(), iv);
-        for i in 0..(audio.len() / 16) {
-            let block_audio = &mut audio[i * 16..(i + 1) * 16];
-            aes_cbc_decrypt.decrypt_block_mut(block_audio.into());
-        }
+        audio
+            .chunks_exact_mut(16)
+            .for_each(|buf| aes_cbc_decrypt.decrypt_block_mut(buf.into()));
     }
 }
