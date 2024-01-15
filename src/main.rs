@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use airplay2_protocol::airplay::airplay_consumer::{AirPlayConsumer, ArcAirPlayConsumer};
+use airplay2_protocol::airplay::server::AudioPacket;
 use airplay2_protocol::airplay::AirPlayConfig;
 use airplay2_protocol::airplay_bonjour::AirPlayBonjour;
 use airplay2_protocol::control_handle::ControlHandle;
@@ -34,7 +35,7 @@ impl AirPlayConsumer for VideoConsumer {
         log::info!("on_audio_format...");
     }
 
-    fn on_audio(&self, _bytes: &[u8]) {
+    fn on_audio(&self, _bytes: &AudioPacket) {
         log::info!("on_audio...");
     }
 
