@@ -148,6 +148,7 @@ impl ControlHandle {
                         .start(
                             session.airplay.read().await.audio_decryptor(),
                             self.audio_consumer.clone(),
+                            self.airplay_config.audio_buffer_size,
                         )
                         .await
                         .expect("start audio server error!");

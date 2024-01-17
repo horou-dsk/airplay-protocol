@@ -64,6 +64,7 @@ async fn main() -> tokio::io::Result<()> {
         height: 1080,
         fps: 30,
         volume: 0.5,
+        audio_buffer_size: None,
     };
     let video_consumer: ArcAirPlayConsumer = Arc::new(VideoConsumer);
     let mserver = MServer::bind_with_addr(

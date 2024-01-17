@@ -16,8 +16,10 @@ impl AudioServer {
         &self,
         audio_decryptor: FairPlayAudioDecryptor,
         consumer: ArcAirPlayConsumer,
+        audio_buffer_size: Option<u16>,
     ) -> io::Result<()> {
-        *self.server.lock().await = Some(ServerInner::start(audio_decryptor, consumer).await?);
+        *self.server.lock().await =
+            Some(ServerInner::start(audio_decryptor, consumer, audio_buffer_size).await?);
         Ok(())
     }
 
@@ -39,12 +41,13 @@ impl ServerInner {
     async fn start(
         audio_decryptor: FairPlayAudioDecryptor,
         consumer: ArcAirPlayConsumer,
+        audio_buffer_size: Option<u16>,
     ) -> io::Result<Self> {
         let listener = UdpSocket::bind("0.0.0.0:0").await?;
         let port = listener.local_addr()?.port();
         let task = tokio::task::spawn(async move {
             log::info!("AudioServer Starting... port = {}", port);
-            audio_hanlde(listener, audio_decryptor, consumer).await
+            audio_hanlde(listener, audio_decryptor, consumer, audio_buffer_size).await
         });
         Ok(Self { task, port })
     }
@@ -100,7 +103,8 @@ impl AudioDecoder {
     }
 }
 
-const AUDIO_BUFFER_LEN: u16 = 8;
+const MAX_AUDIO_BUFFER_SIZE: usize = 32;
+const DEFAULT_AUDIO_BUFFER_SIZE: u16 = 32;
 
 #[inline]
 fn seqnum_cmp(s1: u16, s2: u16) -> i16 {
@@ -111,7 +115,8 @@ struct AudioBuffer {
     first_seqnum: u16,
     last_seqnum: u16,
     is_empty: bool,
-    entries: [AudioPacket; AUDIO_BUFFER_LEN as usize],
+    buffer_size: u16,
+    entries: [AudioPacket; MAX_AUDIO_BUFFER_SIZE],
 }
 
 impl Default for AudioBuffer {
@@ -120,7 +125,17 @@ impl Default for AudioBuffer {
             is_empty: true,
             last_seqnum: 0,
             first_seqnum: 0,
+            buffer_size: DEFAULT_AUDIO_BUFFER_SIZE,
             entries: Default::default(),
+        }
+    }
+}
+
+impl AudioBuffer {
+    fn with_buffer_size(size: u16) -> Self {
+        Self {
+            buffer_size: size.min(MAX_AUDIO_BUFFER_SIZE as u16),
+            ..Default::default()
         }
     }
 }
@@ -147,11 +162,11 @@ impl AudioBuffer {
             return;
         }
 
-        if seqnum_cmp(seq_number, self.first_seqnum + AUDIO_BUFFER_LEN) >= 0 {
+        if seqnum_cmp(seq_number, self.first_seqnum + self.buffer_size) >= 0 {
             self.buffer_flush(seq_number);
         }
 
-        let entry = &mut self.entries[(seq_number % AUDIO_BUFFER_LEN) as usize];
+        let entry = &mut self.entries[(seq_number % self.buffer_size) as usize];
         if entry.filled && seqnum_cmp(entry.seq_number, seq_number) == 0 {
             return;
         }
@@ -174,10 +189,10 @@ impl AudioBuffer {
             return None;
         }
 
-        let entry = &mut self.entries[(self.first_seqnum % AUDIO_BUFFER_LEN) as usize];
+        let entry = &mut self.entries[(self.first_seqnum % self.buffer_size) as usize];
         if !entry.filled {
             /* Check how much we have space left in the buffer */
-            if entry_count < AUDIO_BUFFER_LEN as i16 {
+            if entry_count < self.buffer_size as i16 {
                 /* Return nothing and hope resend gets on time */
                 return None;
             }
@@ -197,10 +212,12 @@ async fn audio_hanlde(
     listener: UdpSocket,
     audio_decryptor: FairPlayAudioDecryptor,
     consumer: ArcAirPlayConsumer,
+    audio_buffer_size: Option<u16>,
 ) {
     log::info!("AudioServer new connection coming in...");
     let mut buf = [0; 4096];
-    let mut audio_buffer = AudioBuffer::default();
+    let mut audio_buffer =
+        AudioBuffer::with_buffer_size(audio_buffer_size.unwrap_or(MAX_AUDIO_BUFFER_SIZE as u16));
     let mut decoder = AudioDecoder(Default::default());
     loop {
         let read_bytes = listener.recv(&mut buf).await.unwrap();
