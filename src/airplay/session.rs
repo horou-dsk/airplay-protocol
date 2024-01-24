@@ -14,10 +14,10 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(id: String) -> Self {
+    pub fn new(id: String, pin_pwd: String) -> Self {
         Self {
             id,
-            airplay: Arc::new(RwLock::new(AirPlay::default())),
+            airplay: Arc::new(RwLock::new(AirPlay::new(pin_pwd))),
             video_server: Arc::new(RwLock::new(VideoServer::default())),
             audio_server: AudioServer::default(),
         }
@@ -32,11 +32,14 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
-    pub fn get_session(&mut self, id: &str) -> ARSession {
+    pub fn get_session<S: Into<String>>(&mut self, id: &str, pwd: Option<S>) -> ARSession {
         if let Some(session) = self.sessions.get_mut(id) {
             session.clone()
         } else {
-            let session = Arc::new(Session::new(id.to_string()));
+            let session = Arc::new(Session::new(
+                id.to_string(),
+                pwd.map(|v| v.into()).unwrap_or("2222".to_string()),
+            ));
             self.sessions.insert(id.to_string(), session.clone());
             session
             // self.sessions.get_mut(id).unwrap()

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use airplay2_protocol::airplay::airplay_consumer::{AirPlayConsumer, ArcAirPlayConsumer};
 use airplay2_protocol::airplay::server::AudioPacket;
-use airplay2_protocol::airplay::AirPlayConfig;
+use airplay2_protocol::airplay::AirPlayConfigBuilder;
 use airplay2_protocol::airplay_bonjour::AirPlayBonjour;
 use airplay2_protocol::control_handle::ControlHandle;
 use airplay2_protocol::net::server::Server as MServer;
@@ -54,18 +54,16 @@ async fn main() -> tokio::io::Result<()> {
     let port = 31927;
     let name = "RustAirplay";
 
-    // pin码认证功能缺失...
     let _air = AirPlayBonjour::new(name, port, false);
 
     let addr: SocketAddr = ([0, 0, 0, 0], port).into();
-    let airplay_config = AirPlayConfig {
-        server_name: name.to_string(),
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        volume: 0.5,
-        audio_buffer_size: None,
-    };
+    let airplay_config = AirPlayConfigBuilder::new(name.to_string())
+        .width(1920)
+        .height(1080)
+        .fps(30)
+        .volume(0.5)
+        .pin_pwd("123321")
+        .build();
     let video_consumer: ArcAirPlayConsumer = Arc::new(VideoConsumer);
     let mserver = MServer::bind_with_addr(
         addr,

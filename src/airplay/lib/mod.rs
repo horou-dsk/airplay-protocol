@@ -34,12 +34,21 @@ mod rtsp;
 mod sap_hash;
 pub mod video_stream_info;
 
-#[derive(Default)]
 pub struct AirPlay {
     pairing: Pairing,
     fairplay: FairPlay,
     rtsp: rtsp::Rtsp,
     // fairplay_video_decryptor: Option<FairPlayVideoDecryptor>,
+}
+
+impl AirPlay {
+    pub fn new(pwd: String) -> Self {
+        Self {
+            pairing: Pairing::new(pwd),
+            fairplay: FairPlay::default(),
+            rtsp: rtsp::Rtsp::default(),
+        }
+    }
 }
 
 impl AirPlay {

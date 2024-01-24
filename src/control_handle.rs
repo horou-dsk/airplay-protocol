@@ -44,10 +44,10 @@ impl ControlHandle {
             .get("Active-Remote")
             .or_else(|| req.headers().get("X-Apple-Session-ID"))
             .unwrap();
-        self.session_manager
-            .lock()
-            .await
-            .get_session(session_id.to_str().unwrap())
+        self.session_manager.lock().await.get_session(
+            session_id.to_str().unwrap(),
+            self.airplay_config.pin_pwd.clone(),
+        )
     }
 
     async fn remove_session(&self, req: &Request<'_>) -> Option<ARSession> {
