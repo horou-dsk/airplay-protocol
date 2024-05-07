@@ -2,6 +2,7 @@ use super::{Class, Header, Name, QueryClass, QueryType, RRData};
 
 /// Parsed DNS packet
 #[derive(Debug)]
+#[allow(unused)]
 pub struct Packet<'a> {
     pub header: Header,
     pub questions: Vec<Question<'a>>,
@@ -25,6 +26,7 @@ pub struct Question<'a> {
 /// limited we have some types of packets which are parsed and other provided
 /// as unparsed slice of bytes.
 #[derive(Debug)]
+#[allow(unused)]
 pub struct ResourceRecord<'a> {
     pub name: Name<'a>,
     pub cls: Class,

@@ -1,6 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr};
 
-use default_net::interface::MacAddr;
+use default_net::mac::MacAddr;
 use libmdns::Service;
 
 const AIRPLAY_SERVICE_TYPE: &str = "_airplay._tcp";
@@ -14,7 +14,7 @@ fn get_ip() -> Result<Vec<(Ipv4Addr, Ipv4Addr, Option<MacAddr>)>, String> {
         Ok(default_interface
             .ipv4
             .into_iter()
-            .map(|ip| (ip.addr, ip.netmask, mac_addr.clone()))
+            .map(|ip| (ip.addr, ip.netmask, mac_addr))
             .collect())
     } else {
         let mut ip_list = Vec::new();
@@ -26,7 +26,7 @@ fn get_ip() -> Result<Vec<(Ipv4Addr, Ipv4Addr, Option<MacAddr>)>, String> {
             {
                 let mac_addr = interface.mac_addr;
                 for ip in interface.ipv4 {
-                    ip_list.push((ip.addr, ip.netmask, mac_addr.clone()));
+                    ip_list.push((ip.addr, ip.netmask, mac_addr));
                 }
             }
         }
@@ -36,7 +36,7 @@ fn get_ip() -> Result<Vec<(Ipv4Addr, Ipv4Addr, Option<MacAddr>)>, String> {
             ip_list = default_interface
                 .ipv4
                 .into_iter()
-                .map(|ip| (ip.addr, ip.netmask, mac_addr.clone()))
+                .map(|ip| (ip.addr, ip.netmask, mac_addr))
                 .collect();
         }
         Ok(ip_list)
