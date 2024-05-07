@@ -9,13 +9,25 @@ const AIRTUNES_SERVICE_TYPE: &str = "_raop._tcp";
 
 fn get_ip() -> Result<Vec<(Ipv4Addr, Ipv4Addr, Option<MacAddr>)>, String> {
     if cfg!(windows) {
-        let default_interface = default_net::get_default_interface()?;
-        let mac_addr = default_interface.mac_addr;
-        Ok(default_interface
-            .ipv4
-            .into_iter()
-            .map(|ip| (ip.addr, ip.netmask, mac_addr))
-            .collect())
+        let mut ip_list = Vec::new();
+        let interfaces = default_net::get_interfaces();
+        for interface in interfaces {
+            if (interface.if_type == default_net::interface::InterfaceType::Ethernet
+                || interface.if_type == default_net::interface::InterfaceType::Wireless80211)
+                && (interface.friendly_name == Some("以太网".to_string())
+                    || interface.friendly_name == Some("Wi-Fi".to_string())
+                    || interface.friendly_name == Some("WLAN".to_string()))
+            {
+                let mac_addr = interface.mac_addr;
+                ip_list.extend(
+                    interface
+                        .ipv4
+                        .into_iter()
+                        .map(|ip| (ip.addr, ip.netmask, mac_addr)),
+                );
+            }
+        }
+        Ok(ip_list)
     } else {
         let mut ip_list = Vec::new();
         let interfaces = default_net::get_interfaces();
