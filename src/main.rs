@@ -7,8 +7,6 @@ use airplay2_protocol::airplay::AirPlayConfigBuilder;
 use airplay2_protocol::airplay_bonjour::AirPlayBonjour;
 use airplay2_protocol::control_handle::ControlHandle;
 use airplay2_protocol::net::server::Server as MServer;
-use airplay2_protocol::setup_log;
-// use env_logger::Env;
 
 struct VideoConsumer;
 
@@ -50,7 +48,6 @@ impl AirPlayConsumer for VideoConsumer {
 
 #[tokio::main]
 async fn main() -> tokio::io::Result<()> {
-    setup_log();
     let port = 31927;
     let name = "RustAirplay";
 

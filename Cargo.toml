@@ -20,7 +20,6 @@ curve25519-dalek = { version = "4.1", features = ["rand_core"] }
 default-net = "0.22"
 ed25519 = "2"
 ed25519-dalek = { version = "2.0.0-rc.2", features = ["rand_core"] }
-env_logger = "0.10"
 futures = "0.3"
 # gstreamer = "0.20"
 hex = "0.4"
@@ -30,7 +29,7 @@ libmdns = { path = "./libmdns" }
 num-bigint = { version = "0.4", features = ["rand"] }
 num-traits = "0.2"
 obfstr = "0.4"
-plist = "1.4"
+plist = "1.6"
 rand = "0.8"
 serde = { version = "1", features = ["derive"] }
 sha-1 = "0.10"
