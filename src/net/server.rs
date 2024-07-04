@@ -93,8 +93,8 @@ async fn decoder(mut stream: TcpStream, handle: Arc<dyn ServiceRequest>, server_
         let mut header_line = String::new();
         loop {
             match reader.read_line(&mut header_line).await {
-                Ok(size) if size > 2 => break,
-                Ok(_) => (),
+                Ok(size) if size > 2 => (),
+                Ok(_) => break,
                 Err(_) => break 'out,
             }
         }
