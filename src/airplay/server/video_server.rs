@@ -30,6 +30,10 @@ impl VideoServer {
     pub fn stop(&mut self) {
         self.server.take();
     }
+
+    pub fn is_running(&self) -> bool {
+        self.server.is_some()
+    }
 }
 
 struct ServerInner {

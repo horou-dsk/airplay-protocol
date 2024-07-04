@@ -264,4 +264,21 @@ impl ServiceRequest for ControlHandle {
         }
         .boxed()
     }
+
+    fn disconnect(&self) -> futures::future::BoxFuture<()> {
+        async move {
+            let sessions = self.session_manager.lock().await.take_all_sessions();
+            for session in sessions {
+                if session.audio_server.is_running().await {
+                    session.audio_server.stop().await;
+                    self.audio_consumer.on_audio_src_disconnect();
+                }
+                if session.video_server.read().await.is_running() {
+                    session.video_server.write().await.stop();
+                    self.video_consumer.on_video_src_disconnect();
+                }
+            }
+        }
+        .boxed()
+    }
 }

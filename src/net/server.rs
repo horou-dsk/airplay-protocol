@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use tokio::{
@@ -39,24 +39,28 @@ fn parse_header(header_str: &str) -> HeaderMap {
     map
 }
 
-async fn decoder(
-    mut stream: TcpStream,
-    handle: Arc<dyn ServiceRequest>,
-    server_port: u16,
-) -> io::Result<()> {
+async fn decoder(mut stream: TcpStream, handle: Arc<dyn ServiceRequest>, server_port: u16) {
     log::info!("连接进入....");
-    // let mut index = 0;
-    loop {
-        // index += 1;
-        // log::info!("index ========== {index}");
-
+    'out: loop {
         let mut reader = BufReader::new(&mut stream);
         let mut initial_line = String::new();
-        let amt = match reader.read_line(&mut initial_line).await {
-            Ok(amt) => amt,
-            Err(err) => {
-                log::error!("read_line error = {:?}", err);
-                break;
+        let amt = tokio::select! {
+            result = reader.read_line(&mut initial_line) => {
+                match result {
+                    Ok(amt) => amt,
+                    Err(err) => {
+                        log::error!("read_line error = {:?}", err);
+                        break;
+                    }
+                }
+            },
+            _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                let result = tokio::time::timeout(Duration::from_secs(3), stream.write_all(b"ping")).await;
+                if result.is_err() || result.unwrap().is_err() {
+                    break;
+                } else {
+                    continue;
+                }
             }
         };
         if amt == 0 {
@@ -85,7 +89,13 @@ async fn decoder(
         };
         let uri = methods[1];
         let mut header_line = String::new();
-        while reader.read_line(&mut header_line).await? > 2 {}
+        loop {
+            match reader.read_line(&mut header_line).await {
+                Ok(size) if size > 2 => break,
+                Ok(_) => (),
+                Err(_) => break 'out,
+            }
+        }
         let headers = parse_header(&header_line);
         let content_length: usize = headers
             .get("content-length")
@@ -102,9 +112,9 @@ async fn decoder(
                     break;
                 }
                 let resp_bytes = resp.into_bytes();
-                stream.write_all(&resp_bytes).await?;
+                let _ = stream.write_all(&resp_bytes).await;
                 // log::info!("resp = \n{}", String::from_utf8_lossy(&resp_bytes));
-                stream.flush().await?;
+                let _ = stream.flush().await;
             }
             Err(err) => {
                 log::error!("{err:?}");
@@ -112,8 +122,8 @@ async fn decoder(
             }
         }
     }
+    handle.disconnect().await;
     log::info!("连接断开....");
-    Ok(())
 }
 
 impl Server {

@@ -110,4 +110,6 @@ impl<'a> Request<'a> {
 
 pub trait ServiceRequest: Sync + Send {
     fn call<'a>(&'a self, req: Request<'a>) -> BoxFuture<'a, anyhow::Result<Response>>;
+
+    fn disconnect(&self) -> BoxFuture<()>;
 }

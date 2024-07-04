@@ -46,6 +46,10 @@ impl SessionManager {
         }
     }
 
+    pub fn take_all_sessions(&mut self) -> Vec<ARSession> {
+        self.sessions.drain().map(|v| v.1).collect()
+    }
+
     pub fn remove_session(&mut self, id: &str) -> Option<ARSession> {
         self.sessions.remove(id)
     }

@@ -30,6 +30,10 @@ impl AudioServer {
     pub async fn stop(&self) {
         self.server.lock().await.take();
     }
+
+    pub async fn is_running(&self) -> bool {
+        self.server.lock().await.is_some()
+    }
 }
 
 struct ServerInner {
@@ -219,9 +223,7 @@ async fn audio_hanlde(
     let mut audio_buffer =
         AudioBuffer::with_buffer_size(audio_buffer_size.unwrap_or(MAX_AUDIO_BUFFER_SIZE as u16));
     let mut decoder = AudioDecoder(Default::default());
-    loop {
-        let read_bytes = listener.recv(&mut buf).await.unwrap();
-
+    while let Ok(read_bytes) = listener.recv(&mut buf).await {
         let buf = &buf[..read_bytes];
         if read_bytes == 16 && buf[12] == 0x0 && buf[13] == 0x68 && buf[14] == 0x34 && buf[15] == 0
         {
