@@ -41,6 +41,7 @@ fn parse_header(header_str: &str) -> HeaderMap {
 
 async fn decoder(mut stream: TcpStream, handle: Arc<dyn ServiceRequest>, server_port: u16) {
     log::info!("连接进入....");
+    let mut normal_disconnect = false;
     'out: loop {
         let mut reader = BufReader::new(&mut stream);
         let mut initial_line = String::new();
@@ -64,6 +65,7 @@ async fn decoder(mut stream: TcpStream, handle: Arc<dyn ServiceRequest>, server_
             }
         };
         if amt == 0 {
+            normal_disconnect = true;
             break;
         }
         let methods: Vec<&str> = initial_line.split(' ').collect();
@@ -122,7 +124,9 @@ async fn decoder(mut stream: TcpStream, handle: Arc<dyn ServiceRequest>, server_
             }
         }
     }
-    handle.disconnect().await;
+    if !normal_disconnect {
+        handle.disconnect().await;
+    }
     log::info!("连接断开....");
 }
 
